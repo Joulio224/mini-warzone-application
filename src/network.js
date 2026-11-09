@@ -1,0 +1,305 @@
+// ---------------------------------------------------------------------------
+// Connexion au serveur temps réel (mini-warzone-server/) via Socket.io
+// ---------------------------------------------------------------------------
+import { io } from 'socket.io-client';
+
+// En dev comme via un tunnel (ngrok), on se connecte par défaut à la même
+// origine que la page elle-même : le proxy configuré dans vite.config.js
+// redirige en interne les requêtes /socket.io vers le vrai serveur (port
+// 3001). Une seule URL à partager avec tes amis, donc.
+// Pour un vrai déploiement (Render/Railway/Suga), mets l'URL publique du
+// serveur dans VITE_REALTIME_SERVER_URL (.env), et le proxy n'est plus
+// nécessaire.
+const SERVER_URL = import.meta.env.VITE_REALTIME_SERVER_URL || undefined;
+
+let socket = null;
+
+// handlers = {
+//   onPlayerJoined, onPlayerMoved, onPlayerShoot, onPlayerLeft, onConnectError,
+//   onHpUpdate, onYouDied, onPlayerDied, onYouRespawned, onPlayerRespawned,
+//   onHitConfirmed, onTeamAssigned,
+//   onYourShield, onPlayerShieldSteps, onYourMoney,
+//   onYourVestCount, onYourWeapons,
+//   onYourAbilities,
+//   onCurrentVests, onVestSpawned, onVestRemoved,
+//   onCurrentWeaponPickups, onWeaponPickupSpawned, onWeaponPickupRemoved,
+//   onKillFeed, onScoreboard,
+//   onYourAmmo, onYourGrenades, onGrenadeSpawned, onGrenadeExploded, onDamageTaken,
+//   onPingPlaced, onPingRemoved,
+// }
+// groupId : identifiant du groupe Firestore actif (voir game-session.js), ou
+// null. Permet au serveur de mettre les membres d'un même groupe dans la
+// même équipe et de les faire spawn ensemble (voir server.js).
+// mode/team : 'team' + une couleur si le créateur du groupe a activé le mode
+// Équipes et assigné ce joueur — dans ce cas les coéquipiers ne peuvent pas
+// se tirer dessus (voir server.js). 'solo'/null sinon (comportement inchangé).
+// `idToken` : jeton Firebase du joueur (chaîne), ou fonction qui en renvoie un
+// frais (de préférence : un jeton ne vit qu'une heure, et Socket.io rappelle la
+// fonction à chaque reconnexion automatique). Le serveur le vérifie : c'est lui
+// qui sait qui est le joueur, et s'il est administrateur ou sanctionné.
+export function connectToServer(pseudo, appearance, groupId, mode, team, handlers, idToken) {
+  const tokenProvider = typeof idToken === 'function' ? idToken : () => idToken;
+  socket = io(SERVER_URL, {
+    auth: async (callback) => {
+      try {
+        callback({ idToken: await tokenProvider() });
+      } catch (error) {
+        console.error('[auth] Token Firebase indisponible :', error);
+        callback({});
+      }
+    },
+  });
+
+  socket.on('connect', () => {
+    socket.emit('join', { pseudo, appearance, groupId, mode, team });
+  });
+
+  socket.on('team-assigned', (data) => {
+    handlers.onTeamAssigned?.(data);
+  });
+
+  socket.on('current-players', (players) => {
+    players.forEach((player) => handlers.onPlayerJoined(player));
+  });
+
+  socket.on('player-joined', (player) => {
+    handlers.onPlayerJoined(player);
+  });
+
+  socket.on('player-moved', (data) => {
+    handlers.onPlayerMoved(data);
+  });
+
+  socket.on('player-shoot', (data) => {
+    handlers.onPlayerShoot(data);
+  });
+
+  socket.on('player-left', ({ id }) => {
+    handlers.onPlayerLeft(id);
+  });
+
+  socket.on('your-hp', ({ hp }) => {
+    handlers.onYourHp?.(hp);
+  });
+
+  socket.on('you-died', () => {
+    handlers.onYouDied?.();
+  });
+
+  socket.on('player-died', (data) => {
+    handlers.onPlayerDied?.(data);
+  });
+
+  socket.on('you-respawned', (data) => {
+    handlers.onYouRespawned?.(data);
+  });
+
+  socket.on('player-respawned', (data) => {
+    handlers.onPlayerRespawned?.(data);
+  });
+
+  socket.on('hit-confirmed', (data) => {
+    handlers.onHitConfirmed?.(data);
+  });
+  // D'où vient le coup qu'on vient d'encaisser (indicateur rouge autour du viseur)
+  socket.on('damage-taken', (data) => {
+    handlers.onDamageTaken?.(data);
+  });
+
+  socket.on('your-shield', ({ shield }) => {
+    handlers.onYourShield?.(shield);
+  });
+
+  socket.on('player-shield-steps', (data) => {
+    handlers.onPlayerShieldSteps?.(data);
+  });
+
+  socket.on('your-money', ({ money }) => {
+    handlers.onYourMoney?.(money);
+  });
+
+  socket.on('your-vest-count', ({ count }) => {
+    handlers.onYourVestCount?.(count);
+  });
+
+  socket.on('your-weapons', ({ weapons }) => {
+    handlers.onYourWeapons?.(weapons);
+  });
+
+  // Économie : capacités spéciales débloquées pour la partie en cours (ex.
+  // 3e emplacement de gilet) et solde d'argent à jour — voir shop.js.
+  socket.on('your-abilities', (data) => {
+    handlers.onYourAbilities?.(data);
+  });
+
+  // Stuff tombé au sol à la mort d'un joueur (voir dropLoot dans server.js) —
+  // gilets ramassés automatiquement en marchant dessus, armes à la touche E
+  // (configurable, voir keybinds.js). current-* arrive une fois à la
+  // connexion pour le stuff déjà par terre ; les autres événements suivent
+  // en direct.
+  socket.on('current-vests', (items) => {
+    handlers.onCurrentVests?.(items);
+  });
+  socket.on('vest-spawned', (data) => {
+    handlers.onVestSpawned?.(data);
+  });
+  socket.on('vest-removed', (data) => {
+    handlers.onVestRemoved?.(data);
+  });
+  socket.on('current-weapon-pickups', (items) => {
+    handlers.onCurrentWeaponPickups?.(items);
+  });
+  socket.on('weapon-pickup-spawned', (data) => {
+    handlers.onWeaponPickupSpawned?.(data);
+  });
+  socket.on('weapon-pickup-removed', (data) => {
+    handlers.onWeaponPickupRemoved?.(data);
+  });
+
+  // Kill feed (une élimination vient d'avoir lieu) et tableau des scores
+  // complet (rediffusé à chaque mort, arrivée ou départ) — voir
+  // scoreboard.js et mini-warzone-server/server.js.
+  socket.on('kill-feed', (data) => {
+    handlers.onKillFeed?.(data);
+  });
+  socket.on('scoreboard', (list) => {
+    handlers.onScoreboard?.(list);
+  });
+
+  // Munitions (voir 'your-ammo' dans server.js), stock de grenades, et
+  // grenades en vol / explosées (le serveur simule le vol et décide de
+  // l'explosion, le client n'affiche que le vol).
+  socket.on('your-ammo', (data) => {
+    handlers.onYourAmmo?.(data);
+  });
+  socket.on('your-grenades', (data) => {
+    handlers.onYourGrenades?.(data);
+  });
+  socket.on('grenade-spawned', (data) => {
+    handlers.onGrenadeSpawned?.(data);
+  });
+  socket.on('grenade-exploded', (data) => {
+    handlers.onGrenadeExploded?.(data);
+  });
+
+  // Pings d'équipe posés depuis la carte (voir minimap.js)
+  socket.on('ping-placed', (data) => {
+    handlers.onPingPlaced?.(data);
+  });
+  socket.on('ping-removed', (data) => {
+    handlers.onPingRemoved?.(data);
+  });
+
+  // --- Administration (voir game-admin.js et admin-tools.js côté serveur) ---
+  socket.on('admin-player-list', (data) => handlers.onAdminPlayerList?.(data));
+  socket.on('admin-action-result', (data) => handlers.onAdminActionResult?.(data));
+  socket.on('admin-journal', (data) => handlers.onAdminJournal?.(data));
+  socket.on('admin-state', (data) => handlers.onAdminState?.(data));
+  socket.on('admin-teleport', (data) => handlers.onAdminTeleport?.(data));
+  socket.on('admin-kicked', (data) => handlers.onAdminKicked?.(data));
+  socket.on('admin-announce', (data) => handlers.onAdminAnnounce?.(data));
+  socket.on('admin-time', (data) => handlers.onAdminTime?.(data));
+  socket.on('player-hidden', (data) => handlers.onPlayerHidden?.(data));
+
+  socket.on('connect_error', (error) => {
+    console.error('[network] Connexion au serveur temps réel impossible :', error.message);
+    handlers.onConnectError?.(error);
+  });
+
+  return socket;
+}
+
+export function sendMove(position, rotationY) {
+  if (!socket?.connected) return;
+  socket.emit('move', { position, rotationY });
+}
+
+// `slot` (0 ou 1) plutôt qu'un identifiant d'arme : le serveur retrouve
+// lui-même l'arme + la rareté équipées dans cet emplacement, il ne fait
+// jamais confiance au client pour les dégâts (voir server.js).
+// `directions` : la direction de chaque plomb, déjà dispersée par le client
+// (1 plomb pour la plupart des armes, 8 pour le fusil à pompe) — le serveur
+// plafonne la dispersion, voir 'shoot' dans server.js.
+export function sendShoot(origin, direction, slot, directions) {
+  if (!socket?.connected) return;
+  socket.emit('shoot', { origin, direction, slot, directions });
+}
+
+export function sendReload(slot) {
+  if (!socket?.connected) return;
+  socket.emit('reload', { slot });
+}
+
+export function sendCancelReload() {
+  if (!socket?.connected) return;
+  socket.emit('cancel-reload');
+}
+
+// kind : 'frag' ou 'smoke'. Le serveur calcule lui-même départ, vitesse et
+// minuterie ; on n'envoie que le type et la direction du regard.
+export function sendThrowGrenade(kind, direction) {
+  if (!socket?.connected) return;
+  socket.emit('throw-grenade', { kind, direction });
+}
+
+// Ping d'équipe à une position de la carte (x, z en mètres, coordonnées du jeu).
+export function sendPlacePing(x, z) {
+  if (!socket?.connected) return;
+  socket.emit('place-ping', { x, z });
+}
+
+export function sendRemovePing() {
+  if (!socket?.connected) return;
+  socket.emit('remove-ping');
+}
+
+export function sendUseVest() {
+  if (!socket?.connected) return;
+  socket.emit('use-vest');
+}
+
+// pickupId : identifiant de l'arme au sol (voir onCurrentWeaponPickups /
+// onWeaponPickupSpawned). slot (0 ou 1) : slot actuellement sélectionné,
+// utilisé par le serveur seulement si le stuff est déjà plein pour savoir
+// lequel remplacer (voir server.js).
+export function sendCollectWeapon(pickupId, slot) {
+  if (!socket?.connected) return;
+  socket.emit('collect-weapon', { pickupId, slot });
+}
+
+// Boutique : itemId vient du catalogue défini dans shop.js (ex. "vest",
+// "weapon:rifle:red", "ability-extra-vest-slot"). Le serveur reste seul
+// juge de la validité de l'achat (fonds, plafonds…).
+export function sendBuyItem(itemId) {
+  if (!socket?.connected) return;
+  socket.emit('buy-item', { itemId });
+}
+
+// Identifiant de CE joueur côté serveur : sert à reconnaître « moi » dans le
+// kill feed et le tableau des scores.
+export function getMyId() {
+  return socket?.id ?? null;
+}
+
+export function isConnected() {
+  return Boolean(socket?.connected);
+}
+
+// Commande d'administration : { action, targetId?, ...paramètres }. Le serveur
+// revérifie à chaque fois que le compte est bien administrateur.
+export function sendAdminAction(payload) {
+  socket?.emit('admin-action', payload);
+}
+
+export function requestAdminPlayers() {
+  socket?.emit('admin-list-players');
+}
+
+export function requestAdminJournal() {
+  socket?.emit('admin-journal');
+}
+
+export function disconnectFromServer() {
+  socket?.disconnect();
+  socket = null;
+}

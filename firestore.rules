@@ -1,0 +1,180 @@
+rules_version = '2';
+
+// ---------------------------------------------------------------------------
+// Règles Firestore — V1 (comptes + amis + groupes + messagerie)
+// ---------------------------------------------------------------------------
+// À copier-coller dans Firebase Console > Firestore Database > Règles
+// (ou via `firebase deploy --only firestore:rules` si tu utilises la CLI).
+//
+// Simplification volontaire pour la V1 : la création d'un document
+// "friendships" est autorisée dès qu'un des deux utilisateurs listés est
+// l'auteur de la requête, sans vérifier qu'une demande d'ami a bien existé
+// avant. Entre potes de confiance au lycée ce n'est pas un souci, mais si
+// tu veux durcir ça plus tard, la manière propre est un Cloud Function
+// déclenché sur l'acceptation d'une demande (nécessite le plan Blaze).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Un message valide : écrit par son auteur, 1 à 500 caractères (même
+    // limite que MAX_LENGTH dans src/messages.js), horodaté par le serveur,
+    // et rien d'autre dedans.
+    function validMessage() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['fromUid', 'fromPseudo', 'text', 'createdAt']) &&
+        d.fromUid == request.auth.uid &&
+        d.fromPseudo is string && d.fromPseudo.size() <= 40 &&
+        d.text is string && d.text.size() >= 1 && d.text.size() <= 500 &&
+        d.createdAt == request.time;
+    }
+
+    // Vrai si le profil users/{uid} porte le champ admin à "true" (texte, comme
+    // posé dans la console) ou à true (booléen).
+    function isAdminUid(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid)) &&
+        get(/databases/$(database)/documents/users/$(uid)).data.get('admin', false) in ['true', true];
+    }
+    function isAdmin() {
+      return request.auth != null && isAdminUid(request.auth.uid);
+    }
+
+    // Vrai si ce joueur est actuellement banni, ou suspendu (suspension pas encore terminée).
+    function isSanctioned(uid) {
+      return exists(/databases/$(database)/documents/sanctions/$(uid)) &&
+        (get(/databases/$(database)/documents/sanctions/$(uid)).data.type == 'ban' ||
+         (get(/databases/$(database)/documents/sanctions/$(uid)).data.type == 'suspend' &&
+          get(/databases/$(database)/documents/sanctions/$(uid)).data.createdAt +
+            duration.value(get(/databases/$(database)/documents/sanctions/$(uid)).data.durationMs, 'ms')
+            > request.time));
+    }
+
+    // Une sanction valide : posée par l'admin qui écrit, sur un joueur existant
+    // qui n'est pas admin ; ban sans durée, ou suspension de 1 seconde à 366 jours.
+    function validSanction(userId) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['type', 'targetPseudo', 'reason', 'byUid', 'byPseudo', 'createdAt', 'durationMs']) &&
+        d.byUid == request.auth.uid &&
+        d.createdAt == request.time &&
+        d.targetPseudo is string && d.targetPseudo.size() <= 40 &&
+        d.byPseudo is string && d.byPseudo.size() <= 40 &&
+        d.reason is string && d.reason.size() <= 200 &&
+        ((d.type == 'ban' && !('durationMs' in d)) ||
+         (d.type == 'suspend' && d.durationMs is int &&
+          d.durationMs >= 1000 && d.durationMs <= 31622400000)) &&
+        exists(/databases/$(database)/documents/users/$(userId)) &&
+        !isAdminUid(userId);
+    }
+
+    // Profil public minimal (pseudo) — lisible par tout compte connecté
+    // pour permettre la recherche d'amis par pseudo.
+    match /users/{uid} {
+      allow read: if request.auth != null;
+      // Le champ "admin" (voir admin.js) ne peut PAS être posé ou modifié par
+      // le joueur lui-même, sinon n'importe qui se ferait admin : il se pose
+      // uniquement à la main dans la console Firebase.
+      allow create: if request.auth != null && request.auth.uid == uid &&
+        !('admin' in request.resource.data);
+      allow update: if request.auth != null && request.auth.uid == uid &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['admin']);
+      allow delete: if false;
+    }
+
+    // Administration — bannissements et suspensions. Un doc par joueur
+    // sanctionné ; le joueur peut lire le sien (pour voir pourquoi il est
+    // bloqué), les admins lisent tout. Seuls les admins écrivent, jamais sur
+    // un autre admin ni sur eux-mêmes. La fin d'une suspension =
+    // createdAt (heure du serveur) + durationMs. Lever = supprimer le doc.
+    match /sanctions/{userId} {
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow create, update: if isAdmin() && validSanction(userId);
+      allow delete: if isAdmin();
+    }
+
+    // Demandes d'ami : seuls l'émetteur et le destinataire peuvent la lire.
+    match /friendRequests/{requestId} {
+      allow read: if request.auth != null &&
+        (request.auth.uid == resource.data.fromUid || request.auth.uid == resource.data.toUid);
+
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.fromUid &&
+        request.resource.data.toUid != request.auth.uid &&
+        request.resource.data.status == 'pending';
+
+      allow delete: if request.auth != null &&
+        (request.auth.uid == resource.data.fromUid || request.auth.uid == resource.data.toUid);
+    }
+
+    // Amitiés confirmées : doc partagé entre les deux amis (id = uids triés).
+    match /friendships/{friendshipId} {
+      allow read: if request.auth != null && request.auth.uid in resource.data.users;
+
+      allow create: if request.auth != null &&
+        request.auth.uid in request.resource.data.users &&
+        request.resource.data.users.size() == 2;
+
+      allow delete: if request.auth != null && request.auth.uid in resource.data.users;
+    }
+
+    // Groupes : lisibles/modifiables par leurs membres, supprimables par le
+    // créateur uniquement. L'update est aussi autorisée à quelqu'un qui
+    // N'EST PAS encore membre, à la condition qu'il s'ajoute lui-même (cas de
+    // l'acceptation d'une invitation) — jamais pour ajouter quelqu'un d'autre.
+    match /groups/{groupId} {
+      allow read: if request.auth != null && request.auth.uid in resource.data.members;
+
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.ownerId &&
+        request.auth.uid in request.resource.data.members;
+
+      allow update: if request.auth != null &&
+        (request.auth.uid in resource.data.members ||
+         request.auth.uid in request.resource.data.members);
+
+      allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId;
+    }
+
+    // Invitations de groupe : même logique que les demandes d'ami — seuls
+    // l'émetteur et le destinataire peuvent la lire, et seul l'émetteur (déjà
+    // membre du groupe visé) peut en créer une.
+    match /groupInvites/{inviteId} {
+      allow read: if request.auth != null &&
+        (request.auth.uid == resource.data.fromUid || request.auth.uid == resource.data.toUid);
+
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.fromUid &&
+        request.resource.data.toUid != request.auth.uid &&
+        request.resource.data.status == 'pending';
+
+      allow delete: if request.auth != null &&
+        (request.auth.uid == resource.data.fromUid || request.auth.uid == resource.data.toUid);
+    }
+
+    // Messagerie — messages privés entre amis. {dmId} est l'id du doc
+    // friendships (uids triés, voir friends.js) : seuls les deux amis lisent
+    // et écrivent, et plus personne dès que l'amitié est supprimée. Un
+    // message ne se modifie ni ne se supprime.
+    match /dms/{dmId}/messages/{messageId} {
+      allow read: if request.auth != null &&
+        request.auth.uid in get(/databases/$(database)/documents/friendships/$(dmId)).data.users;
+
+      allow create: if request.auth != null &&
+        request.auth.uid in get(/databases/$(database)/documents/friendships/$(dmId)).data.users &&
+        validMessage() &&
+        !isSanctioned(request.auth.uid);
+
+      allow update, delete: if false;
+    }
+
+    // Messagerie — chat de groupe : réservé aux membres actuels du groupe.
+    match /groupChats/{groupId}/messages/{messageId} {
+      allow read: if request.auth != null &&
+        request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members;
+
+      allow create: if request.auth != null &&
+        request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members &&
+        validMessage() &&
+        !isSanctioned(request.auth.uid);
+
+      allow update, delete: if false;
+    }
+  }
+}
