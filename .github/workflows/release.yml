@@ -67,6 +67,7 @@ jobs:
           files: |
             release/*.exe
             release/*.blockmap
+            release/latest.yml
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
