@@ -1,6 +1,6 @@
 {
   "name": "mini-warzone",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",
@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && electron .\"",
-    "electron:build": "npm run build && electron-builder --win nsis --publish never"
+    w"electron:build": "npm run build && electron-builder --win nsis --publish never"
   },
   "dependencies": {
     "electron-updater": "^6.6.2",
