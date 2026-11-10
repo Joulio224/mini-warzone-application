@@ -1,6 +1,6 @@
 {
   "name": "mini-warzone",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",
@@ -37,6 +37,7 @@
       "package.json"
     ],
     "win": {
+      "artifactName": "Mini-Warzone-Setup-${version}.${ext}",
       "target": [
         {
           "target": "nsis",
