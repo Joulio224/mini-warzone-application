@@ -214,7 +214,7 @@ function enableGameIfReady() {
 const mapLoader = new GLTFLoader();
 
 mapLoader.load(
-  '/assets/map.glb',
+  new URL('./assets/map.glb', document.baseURI).href,
   (gltf) => {
     gltf.scene.traverse((child) => {
       if (child.isMesh) {
@@ -280,7 +280,7 @@ mapLoader.load(
 
 // Chargement indépendant du fichier de collisions.
 mapLoader.load(
-  '/assets/map-colliders.glb',
+  new URL('./assets/map-colliders.glb', document.baseURI).href,
   (gltf) => {
     gltf.scene.updateMatrixWorld(true);
 
