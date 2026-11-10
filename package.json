@@ -9,8 +9,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && electron .\"",
-    "electron:build": "npm run build && electron-builder --win nsis --publish never"  },
+    "electron:build": "npm run build && electron-builder --win nsis --publish never"
+  },
   "dependencies": {
+    "electron-updater": "^6.6.2",
     "firebase": "^11.8.1",
     "socket.io-client": "^4.8.3",
     "three": "^0.169.0"
@@ -38,7 +40,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "build/icon.ico"
@@ -49,6 +53,14 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Mini Warzone"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Joulio224",
+        "repo": "mini-warzone-application",
+        "releaseType": "release"
+      }
+    ]
   }
 }
