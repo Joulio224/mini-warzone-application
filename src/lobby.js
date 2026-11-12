@@ -163,7 +163,8 @@ function updateMenuHelp() {
     `${keyLabel(k.map)} pour la carte (clic = ping d'équipe), ` +
     `${keyLabel(k.pickupWeapon)} pour ramasser une arme au sol, ` +
     `${keyLabel(k.useVest)} pour utiliser un gilet, ${keyLabel(k.shop)} pour la boutique, ` +
-    `${keyLabel(k.scoreboard)} (maintenu) pour les scores, Échap pour sortir`;
+    `${keyLabel(k.scoreboard)} (maintenu) pour les scores, ` +
+    `${keyLabel(k.spectator)} pour la vision spectateur (cache tout l'affichage), Échap pour sortir`;
 }
 updateMenuHelp();
 initKeybindsPicker({ onChange: updateMenuHelp });

@@ -507,6 +507,27 @@
     .privacy-notice a, #lobby-tab-account a {
       color: #ffb4b4;
     }
+    /* Vision spectateur : seule la scène 3D reste à l'écran (touche réglable dans Paramètres) */
+    body.spectator-vision #pickup-prompt,
+    body.spectator-vision #kill-feed,
+    body.spectator-vision #scoreboard,
+    body.spectator-vision #scope-overlay,
+    body.spectator-vision #crosshair,
+    body.spectator-vision #damage-flash,
+    body.spectator-vision #low-hp-vignette,
+    body.spectator-vision #damage-numbers,
+    body.spectator-vision #damage-indicators,
+    body.spectator-vision #blast-flash,
+    body.spectator-vision #ping-layer,
+    body.spectator-vision #stamina-bar,
+    body.spectator-vision #hud,
+    body.spectator-vision #inventory-hud,
+    body.spectator-vision #money-hud,
+    body.spectator-vision #death-screen,
+    body.spectator-vision #announce-layer,
+    body.spectator-vision #admin-status {
+      display: none !important;
+    }
     .consent-check {
       display: flex;
       align-items: flex-start;

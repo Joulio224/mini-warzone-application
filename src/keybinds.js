@@ -31,6 +31,7 @@ export const KEYBIND_ACTIONS = [
   { id: 'map', label: 'Ouvrir/fermer la carte (ping d\'équipe)' },
   { id: 'shop', label: 'Ouvrir/fermer la boutique' },
   { id: 'scoreboard', label: 'Afficher le tableau des scores (maintenir)' },
+  { id: 'spectator', label: 'Vision spectateur (masque tout l\'affichage)' },
 ];
 const ACTION_IDS = new Set(KEYBIND_ACTIONS.map((a) => a.id));
 
@@ -52,6 +53,8 @@ export const DEFAULT_KEYBINDS = {
   map: 'KeyM',
   shop: 'KeyB',
   scoreboard: 'Tab',
+  // Pas S : c'est déjà « Reculer » (ZQSD/WASD), et une touche ne peut servir qu'à une action.
+  spectator: 'KeyV',
 };
 
 // Touches par défaut qui doivent se reconnaître à leur LETTRE (ce qui est imprimé

@@ -1027,6 +1027,24 @@ const scoreboard = createScoreboard({
   weaponName: (id) => weaponLabel(id),
   rarityColor,
 });
+// --- Vision spectateur ---------------------------------------------------------
+// Cache TOUT ce qui n'appartient pas à la scène 3D : viseur, vie, inventaire, argent,
+// scores, flux de kills, pings, effets de dégâts, annonces... (le CSS `body.spectator-vision`
+// dans index.html) ainsi que l'arme tenue en main (voir la boucle de rendu).
+// Elle se bascule avec la touche « spectator » (Paramètres) et reste active à la mort.
+let spectatorVision = false;
+function setSpectatorVision(on) {
+  spectatorVision = on;
+  document.body.classList.toggle('spectator-vision', on);
+}
+document.addEventListener('keydown', (e) => {
+  if (e.code !== keybinds.spectator || e.repeat || !networkStarted) return;
+  // Pas dans un champ de texte (panneau admin...), ni boutique/carte ouvertes, ni menu affiché
+  if (e.target instanceof HTMLElement && e.target.matches('input, textarea, select, [contenteditable]')) return;
+  if (isOverlayOpen() || !controls.isLocked) return;
+  setSpectatorVision(!spectatorVision);
+});
+
 document.addEventListener('keydown', (e) => {
   if (e.code !== keybinds.scoreboard || !networkStarted) return;
   e.preventDefault(); // sinon Tab déplace le focus du navigateur
@@ -2547,6 +2565,7 @@ function handleTeamAssigned({ team, spawn }) {
 async function startNetwork() {
   if (networkStarted) return;
   networkStarted = true;
+  setSpectatorVision(false);
   keybinds = getKeybinds(); // au cas où elles ont été changées depuis le lobby avant de rejouer
   applySettings(); // idem pour sensibilité, champ de vision, volume et bloom
   myBodyColor = getAppearance().bodyColor; // couleur de TON ping d'équipe
@@ -2812,7 +2831,7 @@ function animate() {
   // En visant à la lunette (sniper), on ne voit plus l'arme : on regarde dans la lunette
   const hasWeapon = Boolean(myWeapons[currentSlot]);
   const scopedNow = isAiming && Boolean(WEAPON_DEFS[myWeapons[currentSlot]?.id]?.zoomRatio) && camera.fov < BASE_FOV * 0.6;
-  weaponGroup.visible = hasWeapon && !isDead && !scopedNow;
+  weaponGroup.visible = hasWeapon && !isDead && !scopedNow && !spectatorVision;
   updateCrosshair(delta);
 
   // Autres joueurs : on lisse leur déplacement plutôt que de les téléporter
