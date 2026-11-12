@@ -1,4 +1,4 @@
-# Mini Warzone
+# BulletGrounds
 
 Jeu de tir multijoueur en 3D (Three.js) à jouer entre amis : comptes, amis et
 groupes via Firebase, parties en temps réel via un serveur Socket.io

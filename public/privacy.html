@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Politique de confidentialité — BulletGrounds</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; padding: 32px 18px; background: #101014; color: #eee; font: 16px/1.65 system-ui, sans-serif; }
+    main { max-width: 850px; margin: 0 auto; }
+    h1, h2, h3 { color: #fff; line-height: 1.25; }
+    h1 { font-size: 2rem; }
+    h2 { margin-top: 2rem; font-size: 1.25rem; }
+    h3 { font-size: 1.05rem; }
+    a { color: #ff9da5; }
+    li { margin: 5px 0; }
+    small { color: #aaa; }
+    .todo { background: #4a3b00; color: #ffd966; padding: 0 4px; border-radius: 3px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #333; padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: #1b1b22; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Politique de confidentialité de BulletGrounds</h1>
+  <p><small>Dernière mise à jour : 11 novembre 2026</small></p>
+
+  <h2>1. Responsable du traitement</h2>
+  <ul>
+    <li><strong>Éditeur :</strong> Jules JACQUOT, mineur, représenté par son représentant légal Maxime JACQUOT</li>
+    <li><strong>Adresse postale :</strong> 8 rue du Génie, 57950 Montigny-lès-Metz, France</li>
+    <li><strong>Adresse électronique de contact (confidentialité) :</strong> <a href="mailto:hello.bulletgrounds@gmail.com">hello.bulletgrounds@gmail.com</a></li>
+    <li><strong>Représentant légal :</strong> Maxime JACQUOT, joignable aux mêmes coordonnées</li>
+  </ul>
+  <p>Le responsable du traitement détermine les finalités et les moyens du traitement des données personnelles des joueurs de BulletGrounds.</p>
+
+  <h2>2. Données personnelles traitées</h2>
+  <h3>Compte</h3>
+  <ul>
+    <li>Adresse électronique et identifiant technique du compte (conservés par Firebase Authentication) ;</li>
+    <li>pseudo, date de création du compte et date de dernière activité.</li>
+  </ul>
+  <h3>Profil visible des autres joueurs</h3>
+  <p>Ton pseudo, l'apparence de ton personnage (couleur et visage) et ta date de dernière activité sont lisibles par les autres joueurs connectés, afin de permettre la recherche d'amis et l'affichage des équipes. Ton adresse électronique n'est pas visible des autres joueurs.</p>
+  <h3>Données sociales</h3>
+  <ul>
+    <li>Liste d'amis, demandes d'amis ;</li>
+    <li>groupes, invitations, appartenances, équipes et rôles attribués.</li>
+  </ul>
+  <h3>Messagerie</h3>
+  <ul>
+    <li>Contenu des messages privés et des messages de groupe ;</li>
+    <li>identifiant et pseudo de l'expéditeur, date et heure d'envoi.</li>
+  </ul>
+  <h3>Modération</h3>
+  <ul>
+    <li>Sanctions éventuelles (bannissement ou suspension), avec leur motif, leur auteur et leur date.</li>
+  </ul>
+  <h3>Parties multijoueurs</h3>
+  <ul>
+    <li>Pseudo, position et déplacements, actions de jeu, santé, équipement, scores de la partie en cours ;</li>
+    <li>données techniques de connexion au serveur (identifiant de connexion, adresse IP traitée par l'hébergeur).</li>
+  </ul>
+  <p>Ces données de partie ne sont pas enregistrées dans une base : elles n'existent que pendant la connexion et la partie.</p>
+  <h3>Sur ton appareil</h3>
+  <p>Réglages de jeu, touches personnalisées, apparence locale et état de lecture des messages sont enregistrés localement sur ton appareil. Ils sont effacés à la suppression du compte depuis l'application.</p>
+
+  <h2>3. Finalités et bases légales</h2>
+  <table>
+    <tr><th>Finalité</th><th>Base légale</th></tr>
+    <tr><td>Création et gestion du compte, authentification, parties multijoueurs</td><td>Exécution du service demandé par le joueur</td></tr>
+    <tr><td>Amis, groupes, messagerie, personnalisation</td><td>Exécution du service demandé par le joueur</td></tr>
+    <tr><td>Sécurité, prévention des abus, modération</td><td>Intérêt légitime à protéger le jeu et ses joueurs</td></tr>
+    <tr><td>Suppression des comptes inactifs, traitement des demandes de droits</td><td>Obligation légale (limitation de la conservation, RGPD)</td></tr>
+  </table>
+  <p>Les données ne sont ni vendues ni utilisées pour de la publicité ciblée ou du profilage publicitaire.</p>
+
+  <h2>4. Prestataires et destinataires</h2>
+  <ul>
+    <li><strong>Google Firebase</strong> (Authentication et base Firestore) : comptes, profils, amis, groupes, messages, sanctions. Les données Firestore sont stockées dans la région multi-régionale européenne <strong>eur3</strong> (Belgique et Pays-Bas). Les données d'authentification (adresse électronique) sont gérées par Firebase Authentication, dont la localisation n'est pas configurable.</li>
+    <li><strong>Suga</strong> : hébergement du serveur multijoueur, région europe-west1 (Belgique). Le serveur reçoit les données de partie et vérifie les jetons d'authentification.</li>
+    <li><strong>GitHub</strong> : distribution des mises à jour de l'application ; l'application contacte GitHub au démarrage, qui voit alors l'adresse IP de l'appareil.</li>
+    <li><strong>Netlify</strong> : hébergement de la version web du jeu et de cette page.</li>
+    <li><strong>Microsoft</strong> : distribution via le Microsoft Store, selon sa propre politique de confidentialité.</li>
+  </ul>
+  <p>Ces prestataires ne traitent les données que pour fournir leur service.</p>
+
+  <h2>5. Transferts hors de l'Union européenne</h2>
+  <p>Le serveur de jeu et la base Firestore sont situés dans l'Union européenne. Certains prestataires, notamment Google pour l'authentification, peuvent toutefois traiter des données depuis des pays situés hors de l'Espace économique européen. Ces transferts sont encadrés par une décision d'adéquation ou par des garanties appropriées (clauses contractuelles types).</p>
+
+  <h2>6. Durées de conservation</h2>
+  <table>
+    <tr><th>Données</th><th>Durée</th></tr>
+    <tr><td>Compte et profil</td><td>Jusqu'à la suppression du compte, ou 24 mois (730 jours) après la dernière activité ; une vérification automatique quotidienne supprime les comptes inactifs</td></tr>
+    <tr><td>Amis, demandes, invitations, groupes</td><td>Jusqu'à leur suppression par le joueur ou la suppression du compte concerné</td></tr>
+    <tr><td>Messages privés</td><td>Supprimés avec la relation d'amitié lors de la suppression du compte de l'un des participants</td></tr>
+    <tr><td>Messages de groupe</td><td>Messages d'un joueur supprimés avec son compte</td></tr>
+    <tr><td>Sanctions</td><td>Supprimées avec le compte concerné</td></tr>
+    <tr><td>Données de partie</td><td>Uniquement pendant la connexion et la partie, non enregistrées</td></tr>
+    <tr><td>Journaux techniques de l'hébergeur</td><td>Selon la configuration du prestataire d'hébergement</td></tr>
+    <tr><td>Données locales sur l'appareil</td><td>Jusqu'à la suppression du compte ou la désinstallation de l'application</td></tr>
+  </table>
+
+  <h2>7. Suppression du compte</h2>
+  <p>Tu peux supprimer ton compte à tout moment depuis l'onglet « Compte » du lobby. Après confirmation de ton mot de passe, le compte d'authentification, le profil, les relations, les invitations, les données de groupe associées et les messages concernés sont supprimés. La suppression est irréversible. Tu peux aussi en faire la demande à l'adresse indiquée en section 1.</p>
+
+  <h2>8. Tes droits</h2>
+  <p>Conformément au RGPD, tu disposes d'un droit d'accès, de rectification, d'effacement, de limitation, d'opposition (dans les cas prévus) et de portabilité de tes données. Pour les exercer, écris à <a href="mailto:hello.bulletgrounds@gmail.com">hello.bulletgrounds@gmail.com</a>. Une réponse te sera apportée dans un délai d'un mois. Tu peux aussi adresser une réclamation à la CNIL : <a href="https://www.cnil.fr/" rel="noopener">www.cnil.fr</a>.</p>
+
+  <h2>9. Mineurs</h2>
+  <p>BulletGrounds est réservé aux personnes âgées d'au moins <strong>13 ans</strong>. Entre 13 et 14 ans, l'accord d'un titulaire de l'autorité parentale est requis pour créer un compte ; à partir de 15 ans, le joueur peut s'inscrire seul. Ne communique pas d'informations personnelles sensibles (nom complet, adresse, téléphone) dans ton pseudo ou tes messages.</p>
+
+  <h2>10. Sécurité</h2>
+  <p>Des règles d'accès à la base de données et des contrôles côté serveur limitent l'accès aux données aux comptes autorisés ; les jetons d'authentification sont vérifiés par le serveur. Aucun mot de passe n'est stocké par BulletGrounds : l'authentification est déléguée à Firebase Authentication.</p>
+
+  <h2>11. Modification de la politique</h2>
+  <p>Cette politique peut évoluer avec le jeu ou la réglementation. La version applicable est celle publiée à l'adresse de cette page, avec sa date de mise à jour.</p>
+
+  <p><strong>Contact :</strong> <a href="mailto:hello.bulletgrounds@gmail.com">hello.bulletgrounds@gmail.com</a></p>
+</main>
+</body>
+</html>

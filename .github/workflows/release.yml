@@ -1,5 +1,5 @@
 
-name: Publish Mini Warzone update
+name: Publish BulletGrounds update
 
 on:
   push:
@@ -41,7 +41,7 @@ jobs:
               font = ImageFont.truetype('arialbd.ttf', 112)
           except OSError:
               font = ImageFont.load_default()
-          label = 'MW'
+          label = 'BG'
           bounds = draw.textbbox((0, 0), label, font=font)
           x = (size - (bounds[2] - bounds[0])) / 2
           y = (size - (bounds[3] - bounds[1])) / 2 - bounds[1]

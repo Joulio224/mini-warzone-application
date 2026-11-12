@@ -1,0 +1,1563 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BulletGrounds</title>
+  <style>
+    #sanction-screen[hidden] { display: none !important; }
+    html, body {
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      height: 100%;
+    }
+    canvas { display: block; }
+
+    #menu {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      color: white;
+      font-family: system-ui, sans-serif;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 10;
+      text-align: center;
+    }
+    #menu h1 { margin: 0; font-size: 2.2rem; letter-spacing: 1px; }
+    #menu p { margin: 0; opacity: 0.8; font-size: 0.95rem; }
+    #play-button {
+      padding: 14px 28px;
+      font-size: 18px;
+      cursor: pointer;
+      background: #e63946;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+    #play-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    #loading {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      color: white;
+      font-family: system-ui, sans-serif;
+      font-size: 0.85rem;
+      z-index: 11;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 6px 10px;
+      border-radius: 4px;
+    }
+    #pickup-prompt {
+      position: fixed;
+      top: calc(50% + 40px);
+      left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      color: white;
+      font-family: system-ui, sans-serif;
+      font-size: 0.9rem;
+      font-weight: 600;
+      background: rgba(0, 0, 0, 0.55);
+      border: 1px solid rgba(255, 210, 63, 0.5);
+      padding: 6px 14px;
+      border-radius: 6px;
+      z-index: 6;
+      pointer-events: none;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+    }
+    /* Kill feed : en haut à droite, les plus récents en bas ; chaque ligne
+       s'estompe puis disparaît toute seule (voir scoreboard.js) */
+    #kill-feed {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 6;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      pointer-events: none;
+      font-family: system-ui, sans-serif;
+    }
+    .feed-entry {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      background: rgba(0, 0, 0, 0.55);
+      color: white;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+      transition: opacity 0.5s ease;
+    }
+    .feed-entry.mine { border-color: rgba(255, 210, 63, 0.8); }
+    .feed-entry.died { border-color: rgba(230, 57, 70, 0.8); }
+    .feed-entry.fade { opacity: 0; }
+    .feed-weapon { opacity: 0.85; font-weight: 500; }
+    .sb-team-red { color: #ff7a85; }
+    .sb-team-blue { color: #7dbdff; }
+    .sb-team-yellow { color: #ffd60a; }
+    .sb-team-green { color: #2dc653; }
+
+    /* Tableau des scores : affiché tant que la touche est maintenue */
+    #scoreboard {
+      position: fixed;
+      inset: 0;
+      z-index: 8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      font-family: system-ui, sans-serif;
+    }
+    #scoreboard[hidden] { display: none; }
+    .sb-card {
+      min-width: 380px;
+      max-width: 90vw;
+      max-height: 80vh;
+      overflow: hidden;
+      padding: 16px 20px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(10, 12, 18, 0.85);
+      color: white;
+    }
+    .sb-title { margin: 0 0 10px; font-size: 1rem; letter-spacing: 1px; text-transform: uppercase; opacity: 0.8; }
+    .sb-teams { display: flex; justify-content: center; gap: 14px; margin-bottom: 10px; font-weight: 800; font-size: 1.05rem; }
+    .sb-team-sep { opacity: 0.4; }
+    .sb-table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+    .sb-table th { text-align: left; padding: 4px 8px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.55; }
+    .sb-table td { padding: 6px 8px; border-top: 1px solid rgba(255, 255, 255, 0.07); }
+    .sb-table .sb-num { text-align: right; width: 64px; font-variant-numeric: tabular-nums; }
+    .sb-table tr.mine td { background: rgba(255, 210, 63, 0.14); font-weight: 700; }
+    .sb-dot { display: inline-block; width: 9px; height: 9px; margin-right: 8px; border-radius: 50%; background: currentColor; }
+    /* --- Viseur : un point central + 4 traits fins qui le "pointent". Hanche :
+       les traits sont écartés (écart = dispersion réelle de l'arme, voir
+       updateCrosshair() dans main.js) ; en visant, ils se resserrent jusqu'à
+       frôler le point et former un petit plus. Traits unis, sans contour. --- */
+    #crosshair {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      pointer-events: none;
+      z-index: 5;
+      --gap: 9px;          /* écart entre le bord du point et le début des traits (réglé par le jeu à chaque image) */
+      --hit-extra: 0px;    /* réservé (aucun décalage à la touche : le + reste exact en visée) */
+      --len: 12.4px;       /* longueur d'un trait */
+      --thick: 1.35px;     /* épaisseur d'un trait */
+      --ch-color: #ffffff;
+    }
+    #crosshair .ch-dot {
+      position: absolute;
+      width: 2px;
+      height: 2px;
+      margin: -1px 0 0 -1px;
+      border-radius: 50%;
+      background: var(--ch-color);
+      transition: background 0.08s ease;
+    }
+    #crosshair .ch-line {
+      position: absolute;
+      background: var(--ch-color);
+      transition: background 0.08s ease;
+    }
+    #crosshair .ch-t { width: var(--thick); height: var(--len); left: calc(var(--thick) / -2); top: calc(-1 * (var(--gap) + var(--hit-extra) + var(--len))); }
+    #crosshair .ch-b { width: var(--thick); height: var(--len); left: calc(var(--thick) / -2); top: calc(var(--gap) + var(--hit-extra)); }
+    #crosshair .ch-l { height: var(--thick); width: var(--len); top: calc(var(--thick) / -2); left: calc(-1 * (var(--gap) + var(--hit-extra) + var(--len))); }
+    #crosshair .ch-r { height: var(--thick); width: var(--len); top: calc(var(--thick) / -2); left: calc(var(--gap) + var(--hit-extra)); }
+    #crosshair.hit { --ch-color: #ffb400; } /* touche confirmée : les traits passent à l orange, sans bouger */
+
+    /* --- Administration : annonces et rappel des modes actifs --------------------- */
+    #announce-layer { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 9; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; max-width: min(640px, 92vw); }
+    .announce-banner { background: rgba(20, 21, 26, 0.92); border: 1px solid rgba(230, 57, 70, 0.7); border-left-width: 4px; color: #fff; padding: 9px 16px; border-radius: 8px; font: 600 0.95rem system-ui, sans-serif; text-align: center; transition: opacity 0.5s ease; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); }
+    .announce-banner.private { border-color: rgba(255, 210, 63, 0.8); }
+    .announce-banner.hide { opacity: 0; }
+    .announce-from { display: block; font-size: 0.68rem; letter-spacing: 1px; text-transform: uppercase; color: #ff8a93; margin-bottom: 2px; }
+    .announce-banner.private .announce-from { color: #ffd23f; }
+    #admin-status { position: fixed; top: 10px; left: 10px; z-index: 6; background: rgba(230, 57, 70, 0.85); color: #fff; font: 700 0.72rem system-ui, sans-serif; letter-spacing: 0.5px; padding: 4px 10px; border-radius: 999px; pointer-events: none; }
+    #admin-status[hidden] { display: none; }
+
+    /* --- Effets de combat : chiffres de dégâts, direction des coups, vie basse --- */
+    #damage-numbers, #damage-indicators { position: fixed; inset: 0; pointer-events: none; z-index: 8; overflow: hidden; }
+    .dmg-number {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      font: 800 1.05rem system-ui, sans-serif;
+      color: #fff;
+      -webkit-text-stroke: 3px rgba(0, 0, 0, 0.75);
+      paint-order: stroke fill;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+      font-variant-numeric: tabular-nums;
+      animation: dmg-float 0.85s ease-out forwards;
+    }
+    .dmg-number.big { font-size: 1.35rem; }
+    .dmg-number.headshot { color: #ffd23f; font-size: 1.5rem; }
+    .dmg-number.headshot::after { content: " ✦"; font-size: 0.8em; }
+    @keyframes dmg-float {
+      0% { opacity: 0; transform: translate(-50%, -30%) scale(0.6); }
+      15% { opacity: 1; transform: translate(-50%, -60%) scale(1.15); }
+      100% { opacity: 0; transform: translate(-50%, -190%) scale(1); }
+    }
+    .dmg-indicator { position: absolute; left: 50%; top: 50%; will-change: transform, opacity; }
+    .dmg-indicator i {
+      display: block;
+      width: 96px;
+      height: 30px;
+      border-top: 6px solid rgba(255, 52, 52, 0.95);
+      border-radius: 96px 96px 0 0 / 30px 30px 0 0;
+      filter: drop-shadow(0 0 7px rgba(255, 0, 0, 0.85));
+      margin-left: -48px;
+    }
+    #low-hp-vignette {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 3;
+      opacity: 0;
+      background: radial-gradient(ellipse at center, rgba(120, 0, 0, 0) 45%, rgba(150, 0, 0, 0.35) 75%, rgba(110, 0, 0, 0.85) 100%);
+    }
+
+    /* --- HUD : vie, dégâts, écran de mort ------------------------------- */
+    #hud {
+      position: fixed;
+      left: 16px;
+      bottom: 16px;
+      z-index: 6;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: system-ui, sans-serif;
+      color: white;
+      pointer-events: none;
+    }
+    #team-label {
+      font-weight: 700;
+      font-size: 0.8rem;
+      padding: 4px 10px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+    }
+    #team-label.team-red { background: rgba(230, 57, 70, 0.85); }
+    #team-label.team-blue { background: rgba(58, 134, 255, 0.85); }
+    #team-label.team-yellow { background: rgba(255, 214, 10, 0.9); color: #222; }
+    #team-label.team-green { background: rgba(45, 198, 83, 0.9); }
+    #health-bar {
+      width: 180px;
+      height: 16px;
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      overflow: hidden;
+    }
+    #health-fill {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #e63946, #ff8fa3);
+      transition: width 0.15s ease;
+    }
+    #health-text {
+      font-weight: 600;
+      font-size: 0.95rem;
+      min-width: 2.5em;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+    }
+    #shield-bar {
+      width: 90px;
+      height: 16px;
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      overflow: hidden;
+    }
+    #shield-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #1c4fbf, #6fb3ff);
+      transition: width 0.15s ease;
+    }
+    #money-hud {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 6;
+      font-family: system-ui, sans-serif;
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: #ffd23f;
+      padding: 6px 16px;
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.45);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+      pointer-events: none;
+    }
+    #inventory-hud {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 6;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-family: system-ui, sans-serif;
+    }
+    .inv-slot {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: white;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+      min-width: 130px;
+      transition: background 0.15s ease, border-color 0.15s ease;
+      pointer-events: none;
+    }
+    .inv-slot.active {
+      background: rgba(255, 210, 63, 0.25);
+      border-color: #ffd23f;
+    }
+    .inv-slot.empty .inv-label { opacity: 0.5; }
+    .inv-key {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.15);
+      font-size: 0.8rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .inv-label {
+      font-weight: 600;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    /* Stock de gilets en réserve (touche P) : un petit carré par
+       emplacement, grisé par défaut, rempli pour chaque gilet en réserve —
+       volontairement sans chiffre, voir updateVestStockUI() dans main.js. */
+    #vest-stock {
+      display: flex;
+      gap: 6px;
+      padding: 0 2px;
+    }
+    .vest-pip {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .vest-pip.filled {
+      background: linear-gradient(135deg, #1c4fbf, #6fb3ff);
+      border-color: rgba(255, 255, 255, 0.4);
+    }
+    #damage-flash {
+      position: fixed;
+      inset: 0;
+      z-index: 4;
+      background: radial-gradient(circle, transparent 40%, rgba(230, 30, 40, 0.45) 100%);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+    }
+    #damage-flash.show {
+      opacity: 1;
+      transition: opacity 0s;
+    }
+    #death-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: rgba(20, 0, 0, 0.55);
+      color: white;
+      font-family: system-ui, sans-serif;
+      text-align: center;
+    }
+    #death-screen[hidden] { display: none; }
+    #death-screen h2 {
+      margin: 0;
+      font-size: 2rem;
+      letter-spacing: 2px;
+      color: #ff6b6b;
+    }
+    #death-screen p { margin: 0; opacity: 0.85; }
+
+    /* --- Écrans connexion / lobby -------------------------------------- */
+    .screen {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(160deg, #1b1b1f, #101014);
+      color: white;
+      font-family: system-ui, sans-serif;
+      overflow-y: auto;
+      padding: 24px 16px;
+      box-sizing: border-box;
+    }
+    .screen[hidden] {
+      display: none; 
+    }
+    .panel {
+      width: 100%;
+      max-width: 420px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 28px;
+      box-sizing: border-box;
+    }
+    .panel h1 {
+      margin: 0 0 20px;
+      font-size: 1.8rem;
+      letter-spacing: 1px;
+      text-align: center;
+    }
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .tab {
+      flex: 1;
+      padding: 10px;
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      color: white;
+      opacity: 0.6;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    .tab.active {
+      opacity: 1;
+      border-color: #e63946;
+      background: rgba(230, 57, 70, 0.15);
+    }
+    .auth-form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .auth-form[hidden] {
+      display: none;
+    }
+    input, select {
+      padding: 10px 12px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(0, 0, 0, 0.3);
+      color: white;
+      font-size: 0.95rem;
+    }
+    input::placeholder { color: rgba(255, 255, 255, 0.4); }
+    button {
+      padding: 10px 16px;
+      border-radius: 6px;
+      border: none;
+      background: #e63946;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    button.secondary {
+      background: rgba(255, 255, 255, 0.12);
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .link-button {
+      background: none;
+      color: rgba(255, 255, 255, 0.7);
+      text-decoration: underline;
+      font-weight: 400;
+      padding: 4px 8px;
+    }
+    .error {
+      color: #ffb4b4;
+      font-size: 0.85rem;
+      min-height: 1.2em;
+      margin: 12px 0 0;
+    }
+
+    /* --- Lobby : colonne de catégories + contenu ----------------------- */
+    .lobby-screen {
+      padding: 0;
+      align-items: stretch;
+      justify-content: flex-start;
+      overflow: hidden;
+    }
+    .lobby-sidebar {
+      width: 230px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+      padding: 26px 14px;
+      box-sizing: border-box;
+      background: #2b2b30;
+      border-right: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .lobby-brand {
+      padding: 0 10px;
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: 1px;
+    }
+    .lobby-nav { display: flex; flex-direction: column; gap: 4px; }
+    .lobby-nav-item {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 12px;
+      width: 100%;
+      padding: 12px 12px 12px 10px;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.65);
+      border-left: 3px solid transparent;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      text-align: left;
+    }
+    .lobby-nav-item:hover { background: rgba(255, 255, 255, 0.07); color: white; }
+    .lobby-nav-item.active {
+      background: rgba(255, 255, 255, 0.13);
+      border-left-color: #e63946;
+      color: white;
+    }
+    .nav-icon { width: 1.4em; text-align: center; }
+    .nav-badge {
+      margin-left: auto;
+      min-width: 20px;
+      height: 20px;
+      padding: 0 6px;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      background: #e63946;
+      color: white;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .nav-badge[hidden] { display: none; }
+
+    .lobby-main {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 32px 40px;
+      box-sizing: border-box;
+    }
+    .lobby-tab { flex: 1; width: 100%; max-width: 820px; margin: 0 auto; }
+    .lobby-tab[hidden] { display: none; }
+    .lobby-tab-home {
+      max-width: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 44px;
+    }
+
+    /* Accueil : les persos du groupe (ou le tien, seul) + gros bouton Jouer */
+    .home-mode-label {
+      text-align: center;
+      font-size: 0.85rem;
+      opacity: 0.7;
+      margin-bottom: 8px;
+      min-height: 1.2em;
+    }
+    .home-party {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: flex-end;
+      gap: 40px;
+    }
+    .party-member {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      --cs: 1.4;
+    }
+    .party-name {
+      max-width: 150px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    .play-button-big {
+      min-width: 320px;
+      padding: 20px 56px;
+      border-radius: 14px;
+      background: linear-gradient(180deg, #ff5561, #e63946 55%, #c1121f);
+      box-shadow: 0 6px 0 #8f0d16, 0 14px 30px rgba(230, 57, 70, 0.3);
+      font-size: 1.8rem;
+      font-weight: 800;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s ease;
+    }
+    .play-button-big:hover { filter: brightness(1.08); }
+    .play-button-big:active {
+      transform: translateY(4px);
+      box-shadow: 0 2px 0 #8f0d16, 0 8px 18px rgba(230, 57, 70, 0.25);
+    }
+
+    /* Perso en HTML/CSS (même silhouette qu'en jeu) — taille réglée par --cs */
+    .character {
+      --cs: 1;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-bottom: calc(8px * var(--cs));
+    }
+    .character::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(76px * var(--cs));
+      height: calc(12px * var(--cs));
+      border-radius: 50%;
+      background: radial-gradient(rgba(0, 0, 0, 0.5), transparent 70%);
+    }
+    .character-head {
+      position: relative;
+      z-index: 2;
+      width: calc(46px * var(--cs));
+      height: calc(46px * var(--cs));
+      margin-bottom: calc(-10px * var(--cs));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: #ffd6a5;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+    }
+    .character-face { font-size: calc(30px * var(--cs)); line-height: 1; }
+    .character-body {
+      position: relative;
+      z-index: 1;
+      width: calc(56px * var(--cs));
+      height: calc(92px * var(--cs));
+      box-sizing: border-box;
+      border: 2px solid rgba(0, 0, 0, 0.3);
+      border-radius: calc(28px * var(--cs));
+      box-shadow: inset -6px -8px 12px rgba(0, 0, 0, 0.25), 0 4px 10px rgba(0, 0, 0, 0.35);
+      transition: background 0.15s ease;
+    }
+    /* Mode Équipes : petit anneau coloré sur le perso de l'accueil */
+    .character.team-red .character-body { box-shadow: 0 0 0 3px #e63946, inset -6px -8px 12px rgba(0, 0, 0, 0.25), 0 4px 10px rgba(0, 0, 0, 0.35); }
+    .character.team-blue .character-body { box-shadow: 0 0 0 3px #3a86ff, inset -6px -8px 12px rgba(0, 0, 0, 0.25), 0 4px 10px rgba(0, 0, 0, 0.35); }
+    .character.team-yellow .character-body { box-shadow: 0 0 0 3px #ffd60a, inset -6px -8px 12px rgba(0, 0, 0, 0.25), 0 4px 10px rgba(0, 0, 0, 0.35); }
+    .character.team-green .character-body { box-shadow: 0 0 0 3px #2dc653, inset -6px -8px 12px rgba(0, 0, 0, 0.25), 0 4px 10px rgba(0, 0, 0, 0.35); }
+
+    .lobby-columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 720px) {
+      .lobby-screen { flex-direction: column; }
+      .lobby-sidebar {
+        width: auto;
+        flex-direction: row;
+        align-items: center;
+        gap: 0;
+        padding: 10px;
+        overflow-x: auto;
+        border-right: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .lobby-brand { display: none; }
+      .lobby-nav { flex-direction: row; }
+      .lobby-nav-item {
+        width: auto;
+        white-space: nowrap;
+        border-left: none;
+        border-bottom: 3px solid transparent;
+        padding: 10px 12px;
+      }
+      .lobby-nav-item.active { border-bottom-color: #e63946; }
+      .lobby-main { padding: 24px 16px; }
+      .lobby-columns { grid-template-columns: 1fr; }
+      .play-button-big { min-width: 0; width: 100%; }
+    }
+
+    /* Messagerie */
+    .messages-layout {
+      display: flex;
+      gap: 16px;
+      height: min(580px, calc(100vh - 140px));
+      min-height: 360px;
+    }
+    .messages-list-col { width: 250px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; }
+    .messages-list-col h2 { font-size: 1.05rem; margin: 0 0 10px; }
+    .conversation-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .conversation-list li.muted { opacity: 0.5; font-size: 0.85rem; padding: 6px 4px; }
+    .conversation-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 9px 10px;
+      background: rgba(255, 255, 255, 0.05);
+      color: white;
+      border-left: 3px solid transparent;
+      border-radius: 8px;
+      text-align: left;
+    }
+    .conversation-item:hover { background: rgba(255, 255, 255, 0.09); }
+    .conversation-item.active { background: rgba(255, 255, 255, 0.13); border-left-color: #e63946; }
+    .conversation-icon { width: 1.4em; text-align: center; flex-shrink: 0; }
+    .conversation-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .conversation-title { font-weight: 600; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .conversation-preview { font-size: 0.75rem; opacity: 0.6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .conversation-unread-dot { width: 10px; height: 10px; border-radius: 50%; background: #e63946; flex-shrink: 0; }
+    .conversation-unread-dot[hidden] { display: none; }
+    .messages-thread-col {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      background: rgba(0, 0, 0, 0.22);
+      border-radius: 10px;
+    }
+    .thread-header { padding: 12px 14px; font-weight: 600; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+    .thread-messages {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .thread-empty { margin: auto; opacity: 0.5; font-size: 0.9rem; text-align: center; }
+    .message {
+      max-width: 78%;
+      align-self: flex-start;
+      padding: 8px 12px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.1);
+      overflow-wrap: anywhere;
+    }
+    .message.mine { align-self: flex-end; background: rgba(230, 57, 70, 0.35); }
+    .message-author { font-size: 0.72rem; font-weight: 600; opacity: 0.7; margin-bottom: 2px; }
+    .message-text { font-size: 0.92rem; white-space: pre-wrap; }
+    .message-time { font-size: 0.66rem; opacity: 0.5; margin-top: 2px; text-align: right; }
+    .thread-error { padding: 0 14px; font-size: 0.8rem; color: #ff8a8a; }
+    .thread-error:empty { display: none; }
+    .thread-form { display: flex; gap: 8px; padding: 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+    .thread-form[hidden] { display: none; }
+    .thread-form input { flex: 1; min-width: 0; }
+    @media (max-width: 720px) {
+      .messages-layout { flex-direction: column; height: calc(100vh - 150px); }
+      .messages-list-col { width: auto; max-height: 150px; }
+    }
+
+    /* Apparence : aperçu du perso + réglages */
+    .appearance-row { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
+    .appearance-preview {
+      --cs: 1.1;
+      flex-shrink: 0;
+      padding: 22px 34px 12px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .appearance-controls { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 200px; }
+    .appearance-color-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.85rem;
+      opacity: 0.8;
+    }
+    #appearance-body-color {
+      width: 48px;
+      height: 32px;
+      padding: 2px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: transparent;
+      cursor: pointer;
+    }
+    .face-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+    .face-option {
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      border: 2px solid transparent;
+    }
+    .face-option.selected { border-color: #e63946; background: rgba(230, 57, 70, 0.2); }
+
+    .lobby-section h2 { font-size: 1.05rem; margin: 0 0 10px; }
+    .lobby-section h3 {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      opacity: 0.6;
+      margin: 16px 0 8px;
+    }
+    .inline-form { display: flex; gap: 8px; margin-bottom: 8px; }
+    .inline-form input { flex: 1; }
+    .list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 260px;
+      overflow-y: auto;
+    }
+    .list li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+    }
+    .list li.muted {
+      justify-content: flex-start;
+      opacity: 0.5;
+      font-size: 0.85rem;
+    }
+    .group-item {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+    }
+    .group-title { font-weight: 600; }
+    .group-mode-row { display: flex; align-items: center; gap: 6px; }
+    .group-mode-label { font-size: 0.8rem; opacity: 0.65; }
+    .mode-button {
+      padding: 5px 10px;
+      font-size: 0.8rem;
+      background: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.85);
+    }
+    .mode-button.active { background: #e63946; color: white; }
+    .group-members-row { display: flex; flex-wrap: wrap; gap: 10px; }
+    .member-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      width: 56px;
+    }
+    .member-avatar-button {
+      position: relative;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      border-radius: 50%;
+      cursor: pointer;
+      line-height: 0;
+    }
+    .member-avatar-button:focus-visible { outline: 2px solid white; outline-offset: 3px; }
+    .member-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid rgba(255, 255, 255, 0.15);
+    }
+    .member-avatar.team-red { border-color: #e63946; }
+    .member-avatar.team-blue { border-color: #3a86ff; }
+    .member-avatar.team-yellow { border-color: #ffd60a; }
+    .member-avatar.team-green { border-color: #2dc653; }
+    .member-face { font-size: 22px; line-height: 1; }
+    .member-name {
+      font-size: 0.7rem;
+      opacity: 0.85;
+      text-align: center;
+      max-width: 56px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .member-admin-label {
+      font-size: 0.55rem;
+      letter-spacing: 0.06em;
+      color: #ffd166;
+      font-weight: 800;
+    }
+    .member-action-menu {
+      position: absolute;
+      z-index: 20;
+      top: -32px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px;
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 9px;
+      background: #202631;
+      box-shadow: 0 5px 18px rgba(0,0,0,0.45);
+    }
+    .member-card { position: relative; }
+    .member-team-picker { display: flex; gap: 4px; }
+    .team-dot {
+      width: 16px;
+      height: 16px;
+      padding: 0;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      opacity: 0.5;
+    }
+    .team-dot-red { background: #e63946; }
+    .team-dot-blue { background: #3a86ff; }
+    .team-dot-yellow { background: #ffd60a; }
+    .team-dot-green { background: #2dc653; }
+    .team-dot.selected { opacity: 1; border-color: white; }
+    .team-dot:disabled { cursor: default; }
+    .team-dot:not(:disabled) { cursor: pointer; }
+    .admin-dot {
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      border-radius: 50%;
+      border: 1px solid #ffd166;
+      background: #5b4512;
+      color: #ffe7a3;
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .admin-dot.selected { background: #ffd166; color: #29210b; }
+    .admin-dot:disabled { opacity: 0.9; cursor: default; }
+    .remove-member-dot {
+      width: 22px; height: 22px; padding: 0; border-radius: 50%;
+      border: 1px solid #ff6b6b; background: #612b32; color: #fff;
+      font-size: 13px; font-weight: 800; line-height: 1; cursor: pointer;
+    }
+    .remove-member-dot:hover { background: #a52f3b; }
+    .group-actions { display: flex; gap: 8px; align-items: center; }
+    .account-info { margin: 0 0 20px; display: flex; flex-direction: column; gap: 10px; }
+    .account-info div {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      font-size: 0.9rem;
+    }
+    .account-info dt { opacity: 0.6; }
+    .account-info dd { margin: 0; font-weight: 600; word-break: break-all; }
+    .keybind-list { margin: 0 0 16px; display: flex; flex-direction: column; gap: 8px; }
+    .setting-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      font-size: 0.9rem;
+    }
+    .setting-control { display: flex; align-items: center; gap: 12px; }
+    .setting-value { min-width: 60px; text-align: right; font-weight: 700; }
+    /* Les styles génériques d'input (champ de texte) déformeraient curseurs et cases à cocher */
+    .setting-row input[type="range"] { width: 200px; padding: 0; border: none; background: transparent; accent-color: #e63946; }
+    .setting-row input[type="checkbox"] { width: 20px; height: 20px; padding: 0; accent-color: #e63946; }
+    .settings-gap { margin-top: 24px; }
+    .admin-user-list { list-style:none; padding:0; display:grid; gap:8px; margin:14px 0; }
+    .admin-user { display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:9px 11px; border:1px solid rgba(255,255,255,.12); border-radius:8px; }
+    .admin-user-actions { display:flex; gap:6px; margin-left:auto; }
+    .admin-badge { font-size:11px; padding:3px 7px; border-radius:20px; background:#374151; }
+    .admin-badge-admin { background:#1d4ed8; } .admin-badge-ban { background:#991b1b; } .admin-badge-suspend { background:#92400e; }
+    #admin-sanction-form { display:grid; gap:10px; padding:14px; border:1px solid rgba(255,255,255,.14); border-radius:9px; }
+    #admin-sanction-form label { display:grid; gap:5px; }
+    #admin-sanction-form input,#admin-sanction-form select,#admin-user-filter { padding:9px; border-radius:6px; border:1px solid #64748b; background:#111827; color:white; }
+    .keybind-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      font-size: 0.9rem;
+    }
+    .keybind-key {
+      min-width: 76px;
+      padding: 6px 10px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+    }
+    .keybind-key.listening {
+      background: #e63946;
+      animation: keybind-pulse 1s ease-in-out infinite;
+    }
+    @keyframes keybind-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.55; }
+    }
+    .cta {
+      width: 100%;
+      padding: 14px;
+      font-size: 1.05rem;
+      margin-top: 4px;
+    }
+
+    /* --- Boutique (économie) -------------------------------------------- */
+    .shop-panel {
+      max-width: 640px;
+      max-height: 86vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .shop-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .shop-header h1 { margin: 0; font-size: 1.4rem; }
+    .shop-money {
+      font-weight: 700;
+      font-size: 1.05rem;
+      color: #ffd23f;
+    }
+    .shop-items {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow-y: auto;
+      padding-right: 4px;
+      margin-bottom: 16px;
+      flex: 1;
+      min-height: 120px;
+    }
+    .shop-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-left: 4px solid var(--rarity-color, rgba(255, 255, 255, 0.2));
+    }
+    .shop-item-info { flex: 1; min-width: 0; }
+    .shop-item-name { font-weight: 600; font-size: 0.95rem; }
+    .shop-item-desc { font-size: 0.78rem; opacity: 0.65; margin-top: 2px; }
+    .shop-item-stats { font-size: 0.78rem; opacity: 0.8; margin-top: 4px; }
+    .shop-item-buy {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .shop-item-price { font-weight: 700; font-size: 0.9rem; color: #ffd23f; }
+    .shop-item-buy button { min-width: 100px; }
+
+    /* Pastille de rareté (gris/bleu/rouge) dans les slots d'inventaire */
+    .inv-rarity-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: transparent;
+      flex-shrink: 0;
+    }
+
+    /* --- Munitions, grenades, endurance, lunette ------------------------ */
+    #ammo-hud {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: white;
+      font-family: system-ui, sans-serif;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+      position: relative;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    #ammo-count { font-size: 1.7rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+    #ammo-mag { font-size: 0.9rem; opacity: 0.65; font-variant-numeric: tabular-nums; }
+    #ammo-state { margin-left: auto; font-size: 0.7rem; letter-spacing: 1px; text-transform: uppercase; opacity: 0.85; }
+    #ammo-hud.low #ammo-count { color: #ff8f3a; }
+    #ammo-hud.empty #ammo-count { color: #e63946; }
+    #ammo-hud.reloading #ammo-count { opacity: 0.45; }
+    #reload-bar {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.12);
+      opacity: 0;
+    }
+    #ammo-hud.reloading #reload-bar { opacity: 1; }
+    #reload-fill { height: 100%; width: 0%; background: #ffd23f; }
+
+    #grenade-hud { display: flex; gap: 6px; pointer-events: none; }
+    .gren-chip {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: white;
+      font-family: system-ui, sans-serif;
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+    }
+    .gren-chip.empty { opacity: 0.4; }
+    .gren-chip .gren-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .gren-chip[data-kind="frag"] .gren-dot { background: #7fb069; box-shadow: 0 0 5px #7fb069; }
+    .gren-chip[data-kind="smoke"] .gren-dot { background: #b8c2cc; box-shadow: 0 0 5px #b8c2cc; }
+    .gren-chip .inv-key { width: 18px; height: 18px; font-size: 0.72rem; }
+    .gren-count { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+    #stamina-bar {
+      position: fixed;
+      left: 16px;
+      bottom: 42px;
+      width: 180px;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      overflow: hidden;
+      z-index: 6;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    #stamina-bar.show { opacity: 1; }
+    #stamina-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #ffd23f, #fff1a8); }
+    #stamina-bar.exhausted #stamina-fill { background: #e07b39; }
+
+    #scope-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 4;
+      pointer-events: none;
+      display: none;
+      background:
+        linear-gradient(#000, #000) center / 2px 100% no-repeat,
+        linear-gradient(#000, #000) center / 100% 2px no-repeat,
+        radial-gradient(circle at center, transparent 0, transparent 34vmin, rgba(0, 0, 0, 0.93) 34.4vmin);
+    }
+    #scope-overlay.show { display: block; }
+
+    #blast-flash {
+      position: fixed;
+      inset: 0;
+      z-index: 9;
+      pointer-events: none;
+      background: #fff6dc;
+      opacity: 0;
+    }
+
+    /* --- Carte + pings d'équipe ----------------------------------------- */
+    #map-screen {
+      background: rgba(8, 12, 18, 0.74);
+      flex-direction: column;
+      gap: 10px;
+      padding: 12px;
+    }
+    #map-screen[hidden] { display: none; }
+    .map-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      width: 100%;
+      max-width: 880px;
+      font-size: 0.85rem;
+    }
+    .map-header h1 { margin: 0; font-size: 1.1rem; letter-spacing: 1px; text-transform: uppercase; }
+    #map-hint { opacity: 0.7; text-align: right; }
+    #map-canvas {
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+      cursor: crosshair;
+      touch-action: none;
+    }
+
+    #ping-layer { position: fixed; inset: 0; z-index: 7; pointer-events: none; overflow: hidden; }
+    .ping-marker {
+      position: absolute;
+      left: 0; top: 0;
+      will-change: transform;
+      --ping-color: #ffd23f;
+    }
+    .ping-marker-icon {
+      position: absolute;
+      left: -9px; top: -9px;
+      width: 18px; height: 18px;
+      background: var(--ping-color);
+      border: 2px solid rgba(0, 0, 0, 0.75);
+      transform: rotate(45deg);
+      box-shadow: 0 0 10px var(--ping-color);
+      animation: ping-pulse 1.2s ease-in-out infinite;
+    }
+    .ping-marker-label {
+      position: absolute;
+      left: 0; top: 16px;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      font: 700 0.72rem system-ui, sans-serif;
+      color: #fff;
+      text-shadow: 0 1px 3px #000, 0 0 3px #000;
+    }
+    .ping-marker.offscreen .ping-marker-icon { opacity: 0.75; transform: rotate(45deg) scale(0.8); animation: none; }
+    .ping-marker.fading { opacity: 0.55; }
+    @keyframes ping-pulse {
+      0%, 100% { transform: rotate(45deg) scale(1); }
+      50% { transform: rotate(45deg) scale(1.2); }
+    }
+  </style>
+</head>
+<body>
+  <div id="loading">Chargement de la map…</div>
+  <div id="pickup-prompt"></div>
+  <div id="kill-feed"></div>
+  <div id="scoreboard" hidden></div>
+  <div id="scope-overlay"></div>
+  <div id="crosshair"><i class="ch-dot"></i><i class="ch-line ch-t"></i><i class="ch-line ch-b"></i><i class="ch-line ch-l"></i><i class="ch-line ch-r"></i></div>
+  <div id="damage-flash"></div>
+  <div id="low-hp-vignette"></div>
+  <div id="damage-numbers"></div>
+  <div id="damage-indicators"></div>
+  <div id="blast-flash"></div>
+  <div id="ping-layer"></div>
+  <div id="stamina-bar"><div id="stamina-fill"></div></div>
+
+  <div id="hud">
+    <span id="team-label"></span>
+    <div id="health-bar"><div id="health-fill"></div></div>
+    <span id="health-text">100</span>
+    <div id="shield-bar"><div id="shield-fill"></div></div>
+  </div>
+  <div id="inventory-hud">
+    <div id="slot-weapon1" class="inv-slot active">
+      <span class="inv-key">1</span><span class="inv-rarity-dot"></span><span class="inv-label">Pistolet</span>
+    </div>
+    <div id="slot-weapon2" class="inv-slot empty">
+      <span class="inv-key">2</span><span class="inv-rarity-dot"></span><span class="inv-label">Vide</span>
+    </div>
+    <!-- Munitions de l'arme en main + rechargement (touche R) -->
+    <div id="ammo-hud">
+      <span id="ammo-count">12</span><span id="ammo-mag">/ 12</span>
+      <span id="ammo-state"></span>
+      <div id="reload-bar"><div id="reload-fill"></div></div>
+    </div>
+    <!-- Grenades et fumigènes en stock (touches G / H), voir updateGrenadeUI() -->
+    <div id="grenade-hud">
+      <div class="gren-chip empty" data-kind="frag"><span class="inv-key" id="gren-key-frag">G</span><span class="gren-dot"></span>Grenade<span class="gren-count" id="gren-count-frag">0</span></div>
+      <div class="gren-chip empty" data-kind="smoke"><span class="inv-key" id="gren-key-smoke">H</span><span class="gren-dot"></span>Fumi.<span class="gren-count" id="gren-count-smoke">0</span></div>
+    </div>
+    <!-- Stock de gilets en réserve (touche P pour en utiliser un), rempli
+         dynamiquement par updateVestStockUI() dans main.js. -->
+    <div id="vest-stock"></div>
+  </div>
+  <div id="money-hud"><span id="money-text">0 €</span></div>
+
+  <div id="death-screen" hidden>
+    <h2>Éliminé</h2>
+    <p id="respawn-countdown">Réapparition dans 3s…</p>
+  </div>
+
+  <!-- Carte : s'ouvre/se ferme avec la touche M (réglable). Clic gauche = ping
+       d'équipe, clic droit = retirer le sien — voir src/minimap.js. -->
+  <div id="map-screen" class="screen" hidden>
+    <div class="map-header">
+      <h1>Carte</h1>
+      <span id="map-hint">Clic gauche : ping d'équipe · Clic droit : retirer mon ping</span>
+    </div>
+    <canvas id="map-canvas"></canvas>
+  </div>
+
+  <!-- Boutique : s'ouvre et se ferme avec la touche B, depuis n'importe où
+       dans la salle (voir la section "Boutique" de main.js). -->
+  <div id="shop-screen" class="screen" hidden>
+    <div class="panel shop-panel">
+      <div class="shop-header">
+        <h1>Boutique</h1>
+        <div class="shop-money"><span id="shop-money-text">0 €</span></div>
+      </div>
+      <div class="tabs">
+        <button type="button" class="tab active" data-shop-tab="weapon">Armes</button>
+        <button type="button" class="tab" data-shop-tab="vest">Gilets</button>
+        <button type="button" class="tab" data-shop-tab="utility">Équipement</button>
+        <button type="button" class="tab" data-shop-tab="ability">Capacités</button>
+      </div>
+      <div id="shop-items" class="shop-items"></div>
+      <button id="shop-close-button" type="button" class="cta secondary">Fermer (B)</button>
+    </div>
+  </div>
+
+  <!-- Écran de connexion / inscription -->
+  <div id="auth-screen" class="screen">
+    <div class="panel">
+      <h1>BulletGrounds</h1>
+      <div class="tabs">
+        <button id="tab-login" type="button" class="tab active">Connexion</button>
+        <button id="tab-signup" type="button" class="tab">Créer un compte</button>
+      </div>
+
+      <form id="login-form" class="auth-form">
+        <input id="login-email" type="email" placeholder="Email" autocomplete="username" required />
+        <input id="login-password" type="password" placeholder="Mot de passe" autocomplete="current-password" required />
+        <button type="submit">Se connecter</button>
+      </form>
+
+      <form id="signup-form" class="auth-form" hidden>
+        <input id="signup-pseudo" type="text" placeholder="Pseudo (3 à 20 caractères)" required />
+        <input id="signup-email" type="email" placeholder="Email" autocomplete="username" required />
+        <input id="signup-password" type="password" placeholder="Mot de passe (6 caractères min.)" autocomplete="new-password" required />
+        <button type="submit">Créer mon compte</button>
+      </form>
+
+      <p id="auth-error" class="error"></p>
+    </div>
+  </div>
+
+  <!-- Lobby : colonne de catégories à gauche + contenu de la catégorie active -->
+  <div id="lobby-screen" class="screen lobby-screen" hidden>
+    <aside class="lobby-sidebar">
+      <div class="lobby-brand">BulletGrounds</div>
+      <nav class="lobby-nav">
+        <button type="button" class="lobby-nav-item active" data-tab="home"><span class="nav-icon">🏠</span>Accueil</button>
+        <button type="button" class="lobby-nav-item" data-tab="friends"><span class="nav-icon">👥</span>Amis<span id="friends-badge" class="nav-badge" hidden></span></button>
+        <button type="button" class="lobby-nav-item" data-tab="messages"><span class="nav-icon">💬</span>Messages<span id="messages-badge" class="nav-badge" hidden></span></button>
+        <button type="button" class="lobby-nav-item" data-tab="appearance"><span class="nav-icon">🎨</span>Apparence</button>
+        <button type="button" class="lobby-nav-item" data-tab="settings"><span class="nav-icon">⌨️</span>Paramètres</button>
+        <button type="button" class="lobby-nav-item" data-tab="account"><span class="nav-icon">⚙️</span>Compte</button>
+      </nav>
+    </aside>
+
+    <main class="lobby-main">
+      <!-- Accueil : ton perso (ou tout ton groupe) + gros bouton Jouer -->
+      <section id="lobby-tab-home" class="lobby-tab lobby-tab-home">
+        <div id="home-mode-label" class="home-mode-label"></div>
+        <div id="home-party" class="home-party"></div>
+        <button id="enter-game-button" type="button" class="play-button-big">Jouer</button>
+      </section>
+
+      <!-- Amis + groupes -->
+      <section id="lobby-tab-friends" class="lobby-tab" hidden>
+        <div class="lobby-columns">
+          <section class="lobby-section">
+            <h2>Amis</h2>
+            <form id="friend-search-form" class="inline-form">
+              <input id="friend-search-input" type="text" placeholder="Chercher un pseudo…" />
+              <button type="submit">Chercher</button>
+            </form>
+            <ul id="friend-search-results" class="list"></ul>
+
+            <h3>Demandes reçues</h3>
+            <ul id="friend-requests-list" class="list"></ul>
+
+            <h3>Mes amis</h3>
+            <ul id="friends-list" class="list"></ul>
+          </section>
+
+          <section class="lobby-section">
+            <h2>Groupes</h2>
+            <form id="group-create-form" class="inline-form">
+              <input id="group-name-input" type="text" placeholder="Nom du groupe" />
+              <button type="submit">Créer</button>
+            </form>
+
+            <h3>Invitations reçues</h3>
+            <ul id="group-invites-list" class="list"></ul>
+
+            <h3>Mes groupes</h3>
+            <ul id="groups-list" class="list"></ul>
+          </section>
+        </div>
+      </section>
+
+      <!-- Apparence -->
+      <!-- Messages : messages privés entre amis + chat de groupe (voir messages.js) -->
+      <section id="lobby-tab-messages" class="lobby-tab" hidden>
+        <div class="messages-layout">
+          <div class="messages-list-col">
+            <h2>Messages</h2>
+            <ul id="conversation-list" class="conversation-list"></ul>
+          </div>
+          <div class="messages-thread-col">
+            <div id="thread-header" class="thread-header">Choisis une conversation</div>
+            <div id="thread-messages" class="thread-messages"></div>
+            <div id="thread-error" class="thread-error"></div>
+            <form id="thread-form" class="thread-form" hidden>
+              <input id="thread-input" type="text" maxlength="500" placeholder="Écrire un message…" autocomplete="off" />
+              <button type="submit">Envoyer</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section id="lobby-tab-appearance" class="lobby-tab" hidden>
+        <div class="lobby-section">
+          <h2>Apparence</h2>
+          <div class="appearance-row">
+            <div id="appearance-preview" class="appearance-preview"></div>
+            <div class="appearance-controls">
+              <label class="appearance-color-label">
+                Couleur du corps
+                <input type="color" id="appearance-body-color" />
+              </label>
+              <div id="appearance-face-grid" class="face-grid"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Paramètres : réglages de jeu (voir settings.js) et touches personnalisables (voir keybinds.js) -->
+      <section id="lobby-tab-settings" class="lobby-tab" hidden>
+        <div class="lobby-section">
+          <h2>Paramètres</h2>
+          <h3>Jeu</h3>
+          <div id="settings-list" class="keybind-list"></div>
+          <button id="settings-reset" type="button" class="secondary">Réinitialiser les réglages</button>
+          <h3 class="settings-gap">Touches</h3>
+          <div id="keybind-list" class="keybind-list"></div>
+          <section id="admin-section" class="lobby-section" hidden style="margin-top:28px">
+            <h2>Administration des comptes</h2>
+            <p>Gestion des bannissements et suspensions.</p>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <input id="admin-user-filter" type="search" placeholder="Rechercher un joueur…" />
+              <button id="admin-refresh" type="button" class="secondary">Actualiser</button>
+            </div>
+            <ul id="admin-user-list" class="admin-user-list"></ul>
+            <form id="admin-sanction-form" hidden>
+              <h3 id="admin-sanction-target"></h3>
+              <label>Sanction <select id="admin-sanction-kind">
+                <option value="ban">Bannissement définitif</option>
+                <option value="3600000">Suspension 1 heure</option>
+                <option value="86400000">Suspension 24 heures</option>
+                <option value="604800000">Suspension 7 jours</option>
+                <option value="custom">Durée personnalisée</option>
+              </select></label>
+              <div id="admin-custom-row" hidden>
+                <input id="admin-custom-amount" type="number" min="1" value="1" />
+                <select id="admin-custom-unit"><option value="h">Heures</option><option value="m">Minutes</option><option value="d">Jours</option></select>
+              </div>
+              <label>Motif <input id="admin-reason" maxlength="200" placeholder="Motif de la sanction" /></label>
+              <div style="display:flex;gap:8px"><button type="submit">Appliquer</button><button id="admin-cancel" type="button" class="secondary">Annuler</button></div>
+              <p id="admin-error" class="error"></p>
+            </form>
+          </section>
+          <button id="keybind-reset" type="button" class="secondary">Réinitialiser les touches</button>
+          <p id="keybind-error" class="error"></p>
+        </div>
+      </section>
+
+      <!-- Compte -->
+      <section id="lobby-tab-account" class="lobby-tab" hidden>
+        <div class="lobby-section">
+          <h2>Compte</h2>
+          <dl class="account-info">
+            <div><dt>Pseudo</dt><dd id="lobby-pseudo"></dd></div>
+            <div><dt>Email</dt><dd id="lobby-email"></dd></div>
+          </dl>
+          <button id="logout-button" type="button" class="secondary">Se déconnecter</button>
+        </div>
+      </section>
+
+      <p id="lobby-error" class="error"></p>
+    </main>
+  </div>
+
+  <div id="sanction-screen" hidden style="position:fixed;inset:0;z-index:2000;background:rgba(8,10,16,.98);color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;font-family:system-ui,sans-serif">
+    <h1 id="sanction-title">Compte sanctionné</h1>
+    <p id="sanction-message"></p>
+    <p id="sanction-countdown"></p>
+    <button id="sanction-logout" type="button">Se déconnecter</button>
+  </div>
+
+  <div id="menu">
+    <h1>BulletGrounds</h1>
+    <p id="menu-help">ZQSD/WASD pour bouger, souris pour regarder, clic pour tirer, R pour recharger, Maj pour courir, G/H pour les grenades, M pour la carte, 1/2 pour changer d'arme, P pour utiliser un gilet, B pour la boutique, Échap pour sortir</p>
+    <button id="play-button" disabled>Chargement…</button>
+    <button id="resume-button" type="button" hidden>Reprendre le jeu</button>
+    <button id="admin-menu-button" type="button" hidden>Admin Panel</button>
+    <button id="quit-button" class="secondary" type="button">Quitter la partie</button>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+  <script type="module" src="/src/lobby.js"></script>
+</body>
+</html>

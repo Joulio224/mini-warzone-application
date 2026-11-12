@@ -49,7 +49,7 @@ jobs:
               font = ImageFont.truetype('arialbd.ttf', 112)
           except OSError:
               font = ImageFont.load_default()
-          label = 'MW'
+          label = 'BG'
           bounds = draw.textbbox((0, 0), label, font=font)
           x = (size - (bounds[2] - bounds[0])) / 2
           y = (size - (bounds[3] - bounds[1])) / 2 - bounds[1]
@@ -59,12 +59,19 @@ jobs:
           python create_icon.py
 
       - name: Build installer
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
         run: npm run electron:build
 
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: Mini-Warzone-Windows-Installer
+          name: BulletGrounds-Windows-Installer
           path: release/*.exe
           if-no-files-found: error
           retention-days: 30

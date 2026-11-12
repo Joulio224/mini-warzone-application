@@ -7,6 +7,8 @@ import {
   signOut,
   onAuthStateChanged,
   updateProfile,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
 } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from './firebase.js';
@@ -33,6 +35,7 @@ export async function signUp(email, password, pseudo) {
     pseudo: cleanPseudo,
     pseudoLower: cleanPseudo.toLowerCase(),
     createdAt: serverTimestamp(),
+    lastSeenAt: serverTimestamp(),
   });
 
   return credential.user;
@@ -40,7 +43,49 @@ export async function signUp(email, password, pseudo) {
 
 export async function signIn(email, password) {
   const credential = await signInWithEmailAndPassword(auth, email, password);
+  await setDoc(doc(db, 'users', credential.user.uid), {
+    lastSeenAt: serverTimestamp(),
+  }, { merge: true });
   return credential.user;
+}
+
+export async function deleteAccountUser(password) {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Aucun compte connecté.');
+  if (!user.email) throw new Error('Ce compte ne possède pas d’adresse email compatible avec cette confirmation.');
+
+  try {
+    const credential = EmailAuthProvider.credential(user.email, password);
+    await reauthenticateWithCredential(user, credential);
+  } catch (error) {
+    if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+      throw new Error('Mot de passe incorrect.');
+    }
+    if (error.code === 'auth/too-many-requests') {
+      throw new Error('Trop de tentatives. Réessaie plus tard.');
+    }
+    throw error;
+  }
+
+  const serverUrl = import.meta.env.VITE_REALTIME_SERVER_URL || 'http://localhost:3001';
+  const token = await user.getIdToken(true);
+  const response = await fetch(`${serverUrl.replace(/\/$/, '')}/account/delete`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  let result = {};
+  try { result = await response.json(); } catch {}
+  if (!response.ok || result.success !== true) {
+    throw new Error(result.error || 'Impossible de supprimer le compte.');
+  }
+
+  // Nettoyage des préférences locales associées à cette installation.
+  for (const key of ['mw_appearance', 'mw_keybinds', 'mw_settings', `mw_chat_read_${user.uid}`]) {
+    localStorage.removeItem(key);
+  }
+
+  await signOut(auth);
 }
 
 export async function signOutUser() {

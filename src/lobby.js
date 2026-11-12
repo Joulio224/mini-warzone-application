@@ -8,7 +8,7 @@
 //   Apparence  — choix du skin
 //   Paramètres — touches personnalisables (voir keybinds.js)
 //   Compte     — pseudo, email, déconnexion
-import { onAuthChange, signUp, signIn, signOutUser, friendlyAuthError } from './auth.js';
+import { onAuthChange, signUp, signIn, signOutUser, deleteAccountUser, friendlyAuthError } from './auth.js';
 import {
   searchUserByPseudo,
   sendFriendRequest,
@@ -87,6 +87,7 @@ const groupInvitesList = document.getElementById('group-invites-list');
 const lobbyPseudoEl = document.getElementById('lobby-pseudo');
 const lobbyEmailEl = document.getElementById('lobby-email');
 const logoutButton = document.getElementById('logout-button');
+const deleteAccountButton = document.getElementById('delete-account-button');
 
 // Le menu du jeu (main.js) ne doit apparaître qu'une fois le lobby validé.
 menuEl.style.display = 'none';
@@ -260,6 +261,10 @@ loginForm.addEventListener('submit', async (e) => {
 signupForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   authError.textContent = '';
+  if (!document.getElementById('signup-consent').checked) {
+    authError.textContent = 'Tu dois accepter les conditions d\'utilisation et confirmer ton âge pour créer un compte.';
+    return;
+  }
   try {
     await signUp(
       document.getElementById('signup-email').value,
@@ -272,6 +277,33 @@ signupForm.addEventListener('submit', async (e) => {
 });
 
 logoutButton.addEventListener('click', () => signOutUser());
+
+deleteAccountButton?.addEventListener('click', async () => {
+  if (!currentUser) return;
+
+  const confirmed = window.confirm(
+    'Supprimer définitivement ton compte BulletGrounds ?\n\n' +
+    'Ton profil, tes amis, tes invitations et tes messages privés seront supprimés. ' +
+    'Tes messages dans les groupes seront également effacés. Cette action est irréversible.'
+  );
+  if (!confirmed) return;
+
+  const password = window.prompt('Pour confirmer, saisis le mot de passe de ton compte :');
+  if (password === null) return;
+
+  deleteAccountButton.disabled = true;
+  deleteAccountButton.textContent = 'Suppression en cours…';
+  lobbyError.textContent = '';
+
+  try {
+    await deleteAccountUser(password);
+  } catch (error) {
+    lobbyError.textContent = error.message || 'La suppression du compte a échoué.';
+  } finally {
+    deleteAccountButton.disabled = false;
+    deleteAccountButton.textContent = 'Supprimer définitivement mon compte';
+  }
+});
 
 // --- Accueil : ton perso, ou celui de tout ton groupe --------------------------
 // Simplification : un joueur peut être dans plusieurs groupes, mais un seul

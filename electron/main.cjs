@@ -64,7 +64,7 @@ p{font-size:13px;color:#aab8ce;line-height:1.5;margin:0}
 </head>
 <body>
 <main class="panel">
-  <div class="logo">MINI WARZONE</div>
+  <div class="logo">BULLETGROUNDS</div>
   <h1>Mise à jour en cours</h1>
   <p id="status">Préparation du téléchargement…</p>
   <div class="track"><div id="fill"></div></div>

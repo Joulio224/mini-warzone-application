@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mini Warzone</title>
+  <title>BulletGrounds</title>
   <style>
     #sanction-screen[hidden] { display: none !important; }
     html, body {
@@ -494,6 +494,30 @@
     button.secondary {
       background: rgba(255, 255, 255, 0.12);
     }
+    .danger-button {
+      background: #8d2028;
+      border: 1px solid rgba(255, 130, 130, 0.35);
+    }
+    .privacy-notice {
+      margin: 14px 0 0;
+      color: rgba(255, 255, 255, 0.65);
+      font-size: 0.78rem;
+      text-align: center;
+    }
+    .privacy-notice a, #lobby-tab-account a {
+      color: #ffb4b4;
+    }
+    .consent-check {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      color: rgba(255, 255, 255, 0.75);
+      font-size: 0.8rem;
+      line-height: 1.4;
+      text-align: left;
+    }
+    .consent-check input { width: auto; margin-top: 3px; flex: none; }
+    .consent-check a { color: #ffb4b4; }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
     .link-button {
       background: none;
@@ -1370,7 +1394,7 @@
   <!-- Écran de connexion / inscription -->
   <div id="auth-screen" class="screen">
     <div class="panel">
-      <h1>Mini Warzone</h1>
+      <h1>BulletGrounds</h1>
       <div class="tabs">
         <button id="tab-login" type="button" class="tab active">Connexion</button>
         <button id="tab-signup" type="button" class="tab">Créer un compte</button>
@@ -1386,9 +1410,14 @@
         <input id="signup-pseudo" type="text" placeholder="Pseudo (3 à 20 caractères)" required />
         <input id="signup-email" type="email" placeholder="Email" autocomplete="username" required />
         <input id="signup-password" type="password" placeholder="Mot de passe (6 caractères min.)" autocomplete="new-password" required />
+        <label class="consent-check">
+          <input id="signup-consent" type="checkbox" required />
+          <span>J'ai au moins 13 ans (avec l'accord d'un parent si j'ai moins de 15 ans) et j'accepte les <a href="./terms.html" target="_blank" rel="noopener">conditions d'utilisation</a> et la <a href="./privacy.html" target="_blank" rel="noopener">politique de confidentialité</a>.</span>
+        </label>
         <button type="submit">Créer mon compte</button>
       </form>
 
+      <p class="privacy-notice">En utilisant BulletGrounds, consulte les <a href="./terms.html" target="_blank" rel="noopener">conditions d'utilisation</a> et la <a href="./privacy.html" target="_blank" rel="noopener">politique de confidentialité</a>.</p>
       <p id="auth-error" class="error"></p>
     </div>
   </div>
@@ -1396,7 +1425,7 @@
   <!-- Lobby : colonne de catégories à gauche + contenu de la catégorie active -->
   <div id="lobby-screen" class="screen lobby-screen" hidden>
     <aside class="lobby-sidebar">
-      <div class="lobby-brand">Mini Warzone</div>
+      <div class="lobby-brand">BulletGrounds</div>
       <nav class="lobby-nav">
         <button type="button" class="lobby-nav-item active" data-tab="home"><span class="nav-icon">🏠</span>Accueil</button>
         <button type="button" class="lobby-nav-item" data-tab="friends"><span class="nav-icon">👥</span>Amis<span id="friends-badge" class="nav-badge" hidden></span></button>
@@ -1533,6 +1562,9 @@
             <div><dt>Pseudo</dt><dd id="lobby-pseudo"></dd></div>
             <div><dt>Email</dt><dd id="lobby-email"></dd></div>
           </dl>
+          <p>Tu peux demander la suppression définitive de ton compte et des données qui y sont associées.</p>
+          <button id="delete-account-button" type="button" class="danger-button">Supprimer définitivement mon compte</button>
+          <p><a href="./privacy.html" target="_blank" rel="noopener">Consulter la politique de confidentialité</a></p>
           <button id="logout-button" type="button" class="secondary">Se déconnecter</button>
         </div>
       </section>
@@ -1549,7 +1581,7 @@
   </div>
 
   <div id="menu">
-    <h1>Mini Warzone</h1>
+    <h1>BulletGrounds</h1>
     <p id="menu-help">ZQSD/WASD pour bouger, souris pour regarder, clic pour tirer, R pour recharger, Maj pour courir, G/H pour les grenades, M pour la carte, 1/2 pour changer d'arme, P pour utiliser un gilet, B pour la boutique, Échap pour sortir</p>
     <button id="play-button" disabled>Chargement…</button>
     <button id="resume-button" type="button" hidden>Reprendre le jeu</button>
