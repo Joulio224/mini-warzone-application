@@ -41,6 +41,14 @@ import {
 import { saveMyAppearance, listenUserAppearance } from './profiles.js';
 import { initKeybindsPicker, getKeybinds, keyLabel, describeMovementKeys } from './keybinds.js';
 import { setActiveGroupId } from './game-session.js';
+import {
+  canManageGroup,
+  isMatchRunning,
+  startGroupMatch,
+  createGearButton,
+  openGroupSettings,
+  syncGroupSettings,
+} from './group-settings.js';
 import { initSettingsPicker } from './settings.js';
 import { initAdminPanel, listenIsAdmin } from './admin.js';
 import { audio } from './audio.js';
@@ -342,7 +350,7 @@ function renderHomeParty() {
   const group = getActiveGroup();
   const mode = group?.mode === 'team' ? 'team' : 'solo';
   homeModeLabelEl.textContent = group
-    ? `Mode : ${mode === 'team' ? 'Équipes' : 'Solo'}`
+    ? `Mode : ${mode === 'team' ? 'Équipes' : 'Solo'} · ${isMatchRunning(group) ? 'Partie en cours' : 'Partie non lancée'}`
     : '';
 
   homePartyEl.innerHTML = '';
@@ -360,6 +368,32 @@ function renderHomeParty() {
 
     homePartyEl.appendChild(wrapper);
   });
+  renderHomeGear();
+  updateEnterButton(group);
+}
+
+// Engrenage en haut à droite de l'accueil : seulement pour le créateur et l'admin du groupe.
+function renderHomeGear() {
+  const tab = document.getElementById('lobby-tab-home');
+  if (!tab) return;
+  tab.querySelector('.gear-button')?.remove();
+  const group = getActiveGroup();
+  if (!group || !canManageGroup(group, currentUser?.uid)) return;
+  tab.appendChild(createGearButton(() => openGroupSettings(getActiveGroup(), currentUser.uid)));
+}
+
+// Sans groupe : on joue comme avant. Dans un groupe : personne n'entre tant que la partie n'est
+// pas lancée ; le créateur / l'admin la lance avec ce même bouton.
+function updateEnterButton(group) {
+  if (!group) {
+    enterGameButton.textContent = 'Jouer';
+    enterGameButton.disabled = false;
+    return;
+  }
+  const running = isMatchRunning(group);
+  const manager = canManageGroup(group, currentUser?.uid);
+  enterGameButton.textContent = running ? 'Rejoindre la partie' : manager ? 'Lancer la partie' : 'En attente du lancement…';
+  enterGameButton.disabled = !running && !manager;
 }
 
 // Garde un abonnement au profil de chaque membre du groupe actif (et
@@ -408,12 +442,24 @@ function scheduleAppearanceSave() {
   }, 400);
 }
 
-enterGameButton.addEventListener('click', () => {
+enterGameButton.addEventListener('click', async () => {
   // Le groupe actif sert au serveur à mettre les coéquipiers dans la même
   // équipe et à les faire spawn ensemble (voir game-session.js et network.js).
   // Mode/équipe : seulement si le créateur du groupe a activé "Équipes" ET
   // déjà assigné CE joueur à une couleur — sinon on part en solo, comme avant.
   const group = getActiveGroup();
+  if (group && !isMatchRunning(group)) {
+    // Partie pas encore lancée : seul le créateur / l'admin du groupe peut la lancer
+    if (!canManageGroup(group, currentUser.uid)) return;
+    enterGameButton.disabled = true;
+    try {
+      await startGroupMatch(group.id);
+    } catch (error) {
+      lobbyError.textContent = error.message || 'Impossible de lancer la partie.';
+      enterGameButton.disabled = false;
+      return;
+    }
+  }
   const myTeam = group?.mode === 'team' ? group.memberTeams?.[currentUser.uid] || null : null;
   setActiveGroupId(group?.id || null, group?.mode || 'solo', myTeam);
   showGameScreen();
@@ -707,6 +753,10 @@ function renderGroupsList() {
     // quand il y en a plusieurs pour ne pas se demander lequel s'affiche à l'accueil.
     if (currentGroups.length > 1 && index === 0) title.textContent += ' — actif';
     li.appendChild(title);
+    if (canManageGroup(group, currentUser.uid)) {
+      title.style.paddingRight = '44px';
+      li.appendChild(createGearButton(() => openGroupSettings(group, currentUser.uid)));
+    }
 
     // Mode de jeu : Solo (par défaut, comme avant) ou Équipes (coéquipiers
     // increvables entre eux, équipe choisie par le créateur ci-dessous).
@@ -795,6 +845,7 @@ function renderGroupsList() {
 function renderGroups(groups) {
   if (!currentUser) return;
   currentGroups = groups;
+  syncGroupSettings(groups);
   setMessagingGroups(groups);
   renderGroupsList();
   syncMemberAppearanceListeners();

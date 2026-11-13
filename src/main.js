@@ -1263,7 +1263,7 @@ function handleAdminKicked({ reason } = {}) {
 }
 
 let respawnInterval = null;
-function handleYouDied() {
+function handleYouDied({ eliminated = false } = {}) {
   hudFx.clear();
   isDead = true;
   audio.playDeath();
@@ -1297,6 +1297,15 @@ function handleYouDied() {
   isAiming = false;
   isMouseDown = false;
   updateAmmoUI();
+
+  // Mode éliminatoire : plus de réapparition, le joueur attend la fin de la partie
+  const deathTitleEl = deathScreenEl.querySelector('h2');
+  if (deathTitleEl) deathTitleEl.textContent = eliminated ? 'Éliminé' : 'Tué';
+  clearInterval(respawnInterval);
+  if (eliminated) {
+    respawnCountdownEl.textContent = 'Tu es éliminé jusqu\'à la fin de la partie.';
+    return;
+  }
 
   let secondsLeft = 3;
   respawnCountdownEl.textContent = `Réapparition dans ${secondsLeft}s…`;
@@ -2623,6 +2632,22 @@ async function startNetwork() {
     },
     onYourHp: handleHpUpdate,
     onYouDied: handleYouDied,
+    onJoinDenied: ({ reason } = {}) => {
+      window.alert(reason || 'Impossible de rejoindre la partie.');
+      window.location.reload();
+    },
+    onMatchOver: ({ winner } = {}) => {
+      hudFx.showAnnouncement(winner ? `Partie terminée — victoire de ${winner} !` : 'Partie terminée — personne ne gagne.', null, false);
+    },
+    onMatchEnded: ({ reason } = {}) => {
+      const texts = {
+        stopped: 'La partie a été arrêtée par le créateur ou un admin du groupe.',
+        removed: 'Tu as été retiré du groupe.',
+        deleted: 'Le groupe a été supprimé.',
+      };
+      hudFx.showAnnouncement(texts[reason] || 'La partie est terminée.', null, false);
+      setTimeout(() => window.location.reload(), 2500); // retour au lobby
+    },
     onPlayerDied: ({ id }) => setOtherPlayerVisible(id, false),
     onYouRespawned: handleYouRespawned,
     onPlayerRespawned: ({ id, position }) => {

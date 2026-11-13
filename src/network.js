@@ -82,9 +82,14 @@ export function connectToServer(pseudo, appearance, groupId, mode, team, handler
     handlers.onYourHp?.(hp);
   });
 
-  socket.on('you-died', () => {
-    handlers.onYouDied?.();
+  socket.on('you-died', (data) => {
+    handlers.onYouDied?.(data);
   });
+
+  // Parties de groupe : accès refusé, fin de partie (éliminatoire) ou partie arrêtée
+  socket.on('join-denied', (data) => handlers.onJoinDenied?.(data));
+  socket.on('match-over', (data) => handlers.onMatchOver?.(data));
+  socket.on('match-ended', (data) => handlers.onMatchEnded?.(data));
 
   socket.on('player-died', (data) => {
     handlers.onPlayerDied?.(data);

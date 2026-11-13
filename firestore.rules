@@ -123,6 +123,7 @@ service cloud.firestore {
     }
 
     // Groupes : lisibles par leurs membres, supprimables par le créateur.
+    // - Réglages de partie (settings) et lancement (match) : créateur ou admin du groupe seulement.
     // - Un membre peut modifier le groupe, sauf son nom, son créateur et sa date
     //   de création (le transfert de propriété se fait côté serveur, à la
     //   suppression d'un compte). Seul le créateur nomme ou retire un admin.
@@ -139,7 +140,10 @@ service cloud.firestore {
         (request.auth.uid in resource.data.members &&
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['ownerId', 'name', 'createdAt']) &&
           (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['adminId']) ||
-            request.auth.uid == resource.data.ownerId))
+            request.auth.uid == resource.data.ownerId) &&
+          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['settings', 'match']) ||
+            request.auth.uid == resource.data.ownerId ||
+            request.auth.uid == resource.data.get('adminId', null)))
         ||
         (!(request.auth.uid in resource.data.members) &&
           request.auth.uid in request.resource.data.members &&
