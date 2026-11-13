@@ -2632,6 +2632,7 @@ async function startNetwork() {
     },
     onYourHp: handleHpUpdate,
     onYouDied: handleYouDied,
+    onZoneUpdate: handleZoneUpdate,
     onJoinDenied: ({ reason } = {}) => {
       window.alert(reason || 'Impossible de rejoindre la partie.');
       window.location.reload();
@@ -2691,6 +2692,56 @@ async function startNetwork() {
 // ---------------------------------------------------------------------------
 // Boucle de rendu
 // ---------------------------------------------------------------------------
+// --- Zone qui rétrécit -----------------------------------------------------------
+// Le serveur envoie (toutes les 500 ms) le centre, le rayon et la vitesse de rétrécissement ;
+// on prolonge le rayon entre deux messages pour un mouvement fluide.
+const ZONE_HEIGHT = 120;
+const zoneMesh = new THREE.Mesh(
+  new THREE.CylinderGeometry(1, 1, ZONE_HEIGHT, 96, 1, true),
+  new THREE.MeshBasicMaterial({
+    color: 0x3b82ff,
+    transparent: true,
+    opacity: 0.22,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    fog: false,
+  })
+);
+zoneMesh.visible = false;
+zoneMesh.renderOrder = 5;
+zoneMesh.frustumCulled = false;
+scene.add(zoneMesh);
+let zoneState = null; // { cx, cz, radius, minRadius, speed, startsInMs, damage, receivedAt }
+const zoneWarningEl = document.getElementById('zone-warning');
+
+function handleZoneUpdate(data) {
+  if (!data?.enabled) {
+    zoneState = null;
+    zoneMesh.visible = false;
+    zoneWarningEl?.classList.remove('show', 'danger');
+    return;
+  }
+  zoneState = { ...data, receivedAt: performance.now() };
+  zoneMesh.visible = true;
+}
+
+function updateZone() {
+  if (!zoneState) return;
+  const elapsed = (performance.now() - zoneState.receivedAt) / 1000;
+  const radius = Math.max(zoneState.minRadius, zoneState.radius - zoneState.speed * elapsed);
+  zoneMesh.position.set(zoneState.cx, ZONE_HEIGHT / 2 - 5, zoneState.cz);
+  zoneMesh.scale.set(radius, 1, radius);
+  if (!zoneWarningEl) return;
+  const outside = Math.hypot(camera.position.x - zoneState.cx, camera.position.z - zoneState.cz) > radius;
+  const startsIn = Math.max(0, zoneState.startsInMs / 1000 - elapsed);
+  let text = '';
+  if (!isDead && outside) text = `Tu es hors de la zone ! −${zoneState.damage} PV/s`;
+  else if (!isDead && startsIn > 0) text = `La zone se resserre dans ${Math.ceil(startsIn)} s`;
+  zoneWarningEl.classList.toggle('show', text !== '');
+  zoneWarningEl.classList.toggle('danger', text !== '' && outside);
+  if (text !== '' && zoneWarningEl.textContent !== text) zoneWarningEl.textContent = text;
+}
+
 const clock = new THREE.Clock();
 let timeSinceLastMoveSent = 0;
 const MOVE_SEND_INTERVAL = 0.033; // ~30 envois par seconde (au lieu de 20) — voir HIT_REWIND_MS côté serveur
@@ -2858,6 +2909,7 @@ function animate() {
   const scopedNow = isAiming && Boolean(WEAPON_DEFS[myWeapons[currentSlot]?.id]?.zoomRatio) && camera.fov < BASE_FOV * 0.6;
   weaponGroup.visible = hasWeapon && !isDead && !scopedNow && !spectatorVision;
   updateCrosshair(delta);
+  updateZone();
 
   // Autres joueurs : on lisse leur déplacement plutôt que de les téléporter
   // à chaque message reçu du serveur (ça "saccaderait" sinon) — mais pas

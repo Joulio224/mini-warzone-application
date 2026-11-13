@@ -90,6 +90,7 @@ export function connectToServer(pseudo, appearance, groupId, mode, team, handler
   socket.on('join-denied', (data) => handlers.onJoinDenied?.(data));
   socket.on('match-over', (data) => handlers.onMatchOver?.(data));
   socket.on('match-ended', (data) => handlers.onMatchEnded?.(data));
+  socket.on('zone-update', (data) => handlers.onZoneUpdate?.(data));
 
   socket.on('player-died', (data) => {
     handlers.onPlayerDied?.(data);

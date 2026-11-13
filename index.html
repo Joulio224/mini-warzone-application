@@ -525,7 +525,8 @@
     body.spectator-vision #money-hud,
     body.spectator-vision #death-screen,
     body.spectator-vision #announce-layer,
-    body.spectator-vision #admin-status {
+    body.spectator-vision #admin-status,
+    body.spectator-vision #zone-warning {
       display: none !important;
     }
     .consent-check {
@@ -1231,6 +1232,23 @@
     .gren-chip .inv-key { width: 18px; height: 18px; font-size: 0.72rem; }
     .gren-count { margin-left: auto; font-variant-numeric: tabular-nums; }
 
+    #zone-warning {
+      position: fixed;
+      top: 118px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9;
+      display: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      background: rgba(20, 21, 26, 0.85);
+      border: 1px solid rgba(59, 130, 255, 0.8);
+      color: #fff;
+      font: 600 0.9rem system-ui, sans-serif;
+      pointer-events: none;
+    }
+    #zone-warning.show { display: block; }
+    #zone-warning.danger { background: rgba(190, 30, 30, 0.85); border-color: #ff6b6b; }
     #stamina-bar {
       position: fixed;
       left: 16px;
@@ -1346,6 +1364,7 @@
   <div id="damage-indicators"></div>
   <div id="blast-flash"></div>
   <div id="ping-layer"></div>
+  <div id="zone-warning"></div>
   <div id="stamina-bar"><div id="stamina-fill"></div></div>
 
   <div id="hud">

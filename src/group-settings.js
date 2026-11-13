@@ -12,12 +12,21 @@
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase.js';
 
-export const DEFAULT_GROUP_SETTINGS = { elimination: false, regen: false };
+export const DEFAULT_GROUP_SETTINGS = {
+  elimination: false,
+  regen: false,
+  zone: false,
+  zoneSpeed: 1,
+  zoneDamage: 5,
+};
 
-// Ajouter un réglage = une ligne ici (+ son application dans server.js).
+// Ajouter un réglage = une entrée ici (+ son application dans server.js).
+// type 'bool' = interrupteur ; type 'number' = valeur bornée (min/max/step) ; `requires` = le
+// réglage n'a d'effet que si cet interrupteur est activé.
 const SETTING_DEFS = [
   {
     key: 'elimination',
+    type: 'bool',
     label: 'Mode éliminatoire',
     help:
       'Un joueur tué est éliminé jusqu\'à la fin de la partie, au lieu de réapparaître. ' +
@@ -25,8 +34,39 @@ const SETTING_DEFS = [
   },
   {
     key: 'regen',
+    type: 'bool',
     label: 'Régénération de la vie',
     help: 'La vie remonte toute seule après 5 secondes sans subir de dégâts (le bouclier ne se régénère pas).',
+  },
+  {
+    key: 'zone',
+    type: 'bool',
+    label: 'Zone qui rétrécit',
+    help:
+      'Un cercle bleu couvre la map, puis se resserre au centre après 30 secondes. ' +
+      'Hors de la zone, les joueurs perdent de la vie chaque seconde.',
+  },
+  {
+    key: 'zoneSpeed',
+    type: 'number',
+    requires: 'zone',
+    label: 'Vitesse de la zone',
+    unit: 'm/s',
+    min: 0.1,
+    max: 5,
+    step: 0.1,
+    help: 'Distance dont le rayon de la zone diminue chaque seconde (la map fait environ 150 m de large).',
+  },
+  {
+    key: 'zoneDamage',
+    type: 'number',
+    requires: 'zone',
+    label: 'Dégâts de la zone',
+    unit: 'PV/s',
+    min: 1,
+    max: 50,
+    step: 1,
+    help: 'Vie perdue chaque seconde hors de la zone (un joueur a 100 PV).',
   },
 ];
 
@@ -43,8 +83,17 @@ export function isMatchRunning(group) {
 }
 
 export async function setGroupSetting(groupId, key, value) {
-  if (!SETTING_DEFS.some((s) => s.key === key)) return;
-  await updateDoc(doc(db, 'groups', groupId), { [`settings.${key}`]: value === true });
+  const def = SETTING_DEFS.find((s) => s.key === key);
+  if (!def) return;
+  let clean;
+  if (def.type === 'number') {
+    const number = Number(value);
+    if (!Number.isFinite(number)) throw new Error('Valeur invalide.');
+    clean = Math.min(def.max, Math.max(def.min, number));
+  } else {
+    clean = value === true;
+  }
+  await updateDoc(doc(db, 'groups', groupId), { [`settings.${key}`]: clean });
 }
 
 export async function startGroupMatch(groupId) {
@@ -134,26 +183,52 @@ function renderModal(group) {
   const errorEl = document.createElement('p');
   errorEl.className = 'gs-error';
 
-  SETTING_DEFS.forEach(({ key, label, help }) => {
+  SETTING_DEFS.forEach((def) => {
+    const { key, label, help, type } = def;
+    const disabled = Boolean(def.requires) && settings[def.requires] !== true;
     const row = document.createElement('label');
     row.className = 'gs-row';
+    if (disabled) row.style.opacity = '0.45';
+    if (def.requires) row.style.paddingLeft = '20px';
+
     const input = document.createElement('input');
-    input.type = 'checkbox';
-    input.checked = settings[key] === true;
-    input.addEventListener('change', () => {
-      errorEl.textContent = '';
-      setGroupSetting(group.id, key, input.checked).catch((error) => {
-        input.checked = !input.checked;
-        errorEl.textContent = error.message || 'Impossible de modifier ce réglage.';
+    input.disabled = disabled;
+    const onError = (error) => {
+      errorEl.textContent = error.message || 'Impossible de modifier ce réglage.';
+    };
+    if (type === 'number') {
+      input.type = 'number';
+      input.min = String(def.min);
+      input.max = String(def.max);
+      input.step = String(def.step);
+      input.value = String(settings[key]);
+      input.style.cssText = 'width:72px;height:auto;flex:none;margin-top:0;padding:4px 6px';
+      input.addEventListener('change', () => {
+        errorEl.textContent = '';
+        setGroupSetting(group.id, key, input.value).catch((error) => {
+          input.value = String(settings[key]);
+          onError(error);
+        });
       });
-    });
+    } else {
+      input.type = 'checkbox';
+      input.checked = settings[key] === true;
+      input.addEventListener('change', () => {
+        errorEl.textContent = '';
+        setGroupSetting(group.id, key, input.checked).catch((error) => {
+          input.checked = !input.checked;
+          onError(error);
+        });
+      });
+    }
     const text = document.createElement('div');
     const strong = document.createElement('strong');
-    strong.textContent = label;
+    strong.textContent = type === 'number' ? `${label} (${def.unit})` : label;
     const small = document.createElement('span');
     small.textContent = help;
     text.append(strong, small);
-    row.append(input, text);
+    if (type === 'number') row.append(text, input);
+    else row.append(input, text);
     modalEl.appendChild(row);
   });
 
@@ -220,5 +295,8 @@ export function syncGroupSettings(groups) {
     closeModal();
     return;
   }
+  // Pas de rafraîchissement pendant qu'on tape une valeur : la saisie serait effacée
+  const focused = document.activeElement;
+  if (focused instanceof HTMLInputElement && focused.type === 'number' && openState.modalEl.contains(focused)) return;
   renderModal(group);
 }
